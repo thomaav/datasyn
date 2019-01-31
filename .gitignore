@@ -3,3 +3,5 @@ oving1/backup
 *.tex
 _minted-report
 _minted-report/*
+delivery/
+delivery/*

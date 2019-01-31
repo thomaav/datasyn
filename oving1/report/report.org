@@ -163,7 +163,7 @@ For the above image we are definitely seeing overfitting. If we limit
 the training set to only 10,000 images, it gets a lot worse:
 
 #+BEGIN_center
-#+ATTR_LATEX: :center :width 1.0\textwidth
+#+ATTR_LATEX: :center :width 0.8\textwidth
 [[./softmaxoverfit.png]]
 #+END_center
 \\\\
@@ -174,7 +174,7 @@ set is not that different, but the training set is not generalizing as
 much):
 
 #+BEGIN_center
-#+ATTR_LATEX: :center :width 1.0\textwidth
+#+ATTR_LATEX: :center :width 0.8\textwidth
 [[./softmaxregu.png]]
 #+END_center
 \\\\
@@ -186,5 +186,18 @@ set, and about 91% for the test/validation set:
 #+BEGIN_center
 #+ATTR_LATEX: :center :width 1.0\textwidth
 [[./softmaxpercent.png]]
+#+END_center
+\\\\
+
+\textbf{3c)} The image containing both the average digit, as well as
+the trained weights are shown below. As this is a linear regression,
+it is pretty clear what the weights are supposed to recognize, as
+opposed to the confusion one may feel from visualizing the inner parts
+of a very deep neural network. It's easy to tell that each set of
+weights is corresponding to a certain digit.
+
+#+BEGIN_center
+#+ATTR_LATEX: :center :width 1.0\textwidth
+[[./digitweights.png]]
 #+END_center
 \\\\

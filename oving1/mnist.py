@@ -59,6 +59,8 @@ def load_mnist():
 
 debug = 0
 def run_times(n):
+    """Runs past a point in the code n times to early stop and debug
+    certain sections."""
     global debug
     debug = debug + 1
     if debug == n:
@@ -78,6 +80,7 @@ def softmax(X, w):
 
 
 def gradient_descent(X, t, w, lr, lmbd=0):
+    """Does one step of gradient descent for _logistic_ regression."""
     s = sigmoid(X, w)
     Ewdw = -(X * (t - s))
     Ewdw = Ewdw.mean(axis=0).reshape(-1, 1)
@@ -86,6 +89,7 @@ def gradient_descent(X, t, w, lr, lmbd=0):
 
 
 def gradient_descent_softmax(X, t, w, lr, lmbd=0):
+    """Does one step of gradient descent for _softmax_ regression."""
     y = softmax(X, w)
     Ewdw = -np.einsum('ij,jk->jki', X.T, t - y)
     Ewdw = Ewdw.mean(axis=0)
@@ -116,7 +120,9 @@ def l2_norm(w):
 
 
 def round_guesses(y):
-    y[y > 0.5] = 1
+    """Rounds binary classification guesses according to whether they
+    are more or less than 50% certain of a category."""
+    y[y >= 0.5] = 1
     y[y < 0.5] = 0
 
 
@@ -172,15 +178,24 @@ def evaluate_softmax(X, Y, w):
     return loss, percentage_wrong_onehot(y, Y)
 
 
-def horizontal_subplots(weights):
-    fig = plt.figure(figsize=(12, 8))
-    print(len(weights))
+def horizontal_subplots(weights, weights2=[]):
+    """Plot arrays of weights for neurons in a horizontal 2d-array
+    manner. weights2 is used to specify a second row."""
+    fig = plt.figure(figsize=(12, 2))
+
     for nplot in range(len(weights)):
         fig.add_subplot()
-        subplot = plt.subplot(1, 5, nplot+1)
-        subplot.set_title("λ = " + str(10**(-nplot)))
+        subplot = plt.subplot(2, len(weights), nplot+1)
         subplot.axis('off')
         plt.imshow(np.reshape(weights[nplot-1][:-1], (28, 28)), cmap='gray')
+
+    if weights2:
+        for nplot in range(len(weights2)):
+            fig.add_subplot()
+            subplot = plt.subplot(2, len(weights2), nplot+1 + len(weights))
+            subplot.axis('off')
+            plt.imshow(np.reshape(weights2[nplot-1][:-1], (28, 28)), cmap='gray')
+
     plt.show()
 
 
@@ -329,6 +344,8 @@ def softmax_regression(X_train, Y_train, X_test, Y_test):
     X_train = X_train / 255
     X_test = X_test / 255
 
+    X_train_full = X_train
+    Y_train_full = Y_train
     X_train = X_train[:10000]
     Y_train = Y_train[:10000]
 
@@ -393,17 +410,35 @@ def softmax_regression(X_train, Y_train, X_test, Y_test):
 
         # Early stopping was implemented for logistic regression, just
         # stop after an appropriate amount of epochs here.
-        if t == 60:
+        if t == 3:
             break
 
-        if t == 50:
-            plt.figure(figsize=(12, 8))
-            plt.ylim([10,100])
-            plt.plot(train_percentages, label="Training percentage")
-            plt.plot(val_percentages, label="Validation percentage")
-            plt.plot(test_percentages, label="Test percentage")
-            plt.legend()
-            plt.show()
+        # Plot statistics if need be.
+        # if t == 50:
+        #     plt.figure(figsize=(12, 8))
+        #     plt.ylim([10,100])
+        #     plt.plot(train_percentages, label="Training percentage")
+        #     plt.plot(val_percentages, label="Validation percentage")
+        #     plt.plot(test_percentages, label="Test percentage")
+        #     plt.legend()
+        #     plt.show()
+
+    # When we are done, plot the outcome of weight tuning.
+    class_weight_hash = {
+        0: [], 1: [], 2: [],
+        3: [], 4: [], 5: [],
+        6: [], 7: [], 8: [],
+        9: []
+    }
+
+    for i in range(len(Y_train_full)):
+        class_weight_hash[Y_train_full[i]].insert(0, (X_train_full[i]))
+
+    avg_digit_weights = []
+    for digit in class_weight_hash:
+        avg_digit_weights.append(np.mean(class_weight_hash[digit], axis=0))
+
+    horizontal_subplots(w, avg_digit_weights)
 
 
 def main():
@@ -417,6 +452,7 @@ def main():
     X_train = np.c_[X_train, np.ones(len(X_train))]
     X_test = np.c_[X_test, np.ones(len(X_test))]
 
+    # Use argparse next time?
     # logistic_regression(X_train, Y_train, X_test, Y_test)
     softmax_regression(X_train, Y_train, X_test, Y_test)
 
