@@ -127,3 +127,19 @@ correct, and that we are L2-regularizing as intended.
 [[./reglambdas.png]]
 #+END_center
 \\\\
+\textbf{2.2d)} As for observing differences between lambda usages, it
+is quite hard to see the difference (there are slight differences, but
+there is nothing that immediately screams «look at this difference --
+very interesting!»). Something that is interesting, however, is their
+appearances in general. As Matplotlib is heat mapping the weights for
+us, we can see that bigger weights are used to search for 2, whilst
+lower (e.g. negative) weights are used to find 3. This is very clear
+from the image below.
+
+#+BEGIN_center
+#+ATTR_LATEX: :center :width 1.0\textwidth
+[[./weightsreg.png]]
+#+END_center
+
+* 3 - Softmax Regression through Gradient Descent
+\textbf{3a)} lol

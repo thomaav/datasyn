@@ -172,6 +172,18 @@ def evaluate_softmax(X, Y, w):
     return train_loss, percentage_wrong_onehot(train_y, Y)
 
 
+def horizontal_subplots(weights):
+    fig = plt.figure(figsize=(12, 8))
+    print(len(weights))
+    for nplot in range(len(weights)):
+        fig.add_subplot()
+        subplot = plt.subplot(1, 5, nplot+1)
+        subplot.set_title("λ = " + str(10**(-nplot)))
+        subplot.axis('off')
+        plt.imshow(np.reshape(weights[nplot-1][:-1], (28, 28)), cmap='gray')
+    plt.show()
+
+
 def logistic_regression(X_train, Y_train, X_test, Y_test):
     # Setup hyperparameters. There are better ways of initializing the
     # weights, but this does just okay for this classification task.
@@ -211,7 +223,8 @@ def logistic_regression(X_train, Y_train, X_test, Y_test):
     X_train = X_train[validation_size:]
     Y_train = Y_train[validation_size:]
 
-    # We need some counters to compute statistics.
+    # We need some counters to compute statistics. This is shamefully
+    # ugly, but they were added as we were going along.
     batches = X_train.shape[0] // batch_size
     train_losses = []
     train_percentages = []
@@ -221,16 +234,23 @@ def logistic_regression(X_train, Y_train, X_test, Y_test):
     test_percentages = []
     val_reg_accuracies = []
     weight_lengths = []
+    trained_weights = []
 
     # Actual training. Not that it is much faster (and gets better
     # accuracy for now) without shuffling, batches and annealed
-    # learning rates. It's a fairly simple problem.
-    for i in range(5):
-        lr = 0.0005
+    # learning rates. It's a fairly simple problem. Note that we are
+    # doing five sessions of training to create plots of different
+    # lambdas for regularization.
+    training_sessions = 5
+    for i in range(training_sessions):
+        print("Starting training run", str(i+1) + "..")
+
+        # Reset from last training run.
         val_reg_accuracies.append([])
         weight_lengths.append([])
+        lr = 0.0005
         w = np.zeros((len(X_train[0]), 1))
-        print("next")
+
         for t in range(epochs):
             # Shuffle the training data to be able to bounce out of local
             # minima (coupled with mini batches, that is).
@@ -242,34 +262,37 @@ def logistic_regression(X_train, Y_train, X_test, Y_test):
                 Y_batch = Y_train[j*batch_size:(j+1)*batch_size]
                 w = gradient_descent(X_batch, Y_batch, w, lr, lmbd=10**(-i))
 
-                # Training statistics.
+                # Training statistics. Woeful.
                 if j % (batches // 20) == 0:
                     train_loss, train_percentage_wrong = evaluate_logreg(X_train, Y_train, w)
                     val_loss, val_percentage_wrong = evaluate_logreg(X_val, Y_val, w)
                     test_loss, test_percentage_wrong = evaluate_logreg(X_test, Y_test, w)
+
                     train_losses.append(train_loss)
                     train_percentages.append(100 - train_percentage_wrong)
+
                     val_losses.append(val_loss)
                     val_percentages.append(100 - val_percentage_wrong)
+
                     test_losses.append(test_loss)
                     test_percentages.append(100 - test_percentage_wrong)
+
                     val_reg_accuracies[i].append(100 - val_percentage_wrong)
                     weight_lengths[i].append(l2_norm(w))
 
-            # Plot statistics after a given amount of time.
-            if t == 20:
-                break
-                plt.figure(figsize=(12, 8))
-                plt.ylim([50,100])
-                # plt.plot(val_losses, label="Validation loss")
-                # plt.plot(train_losses, label="Training loss")
-                # plt.plot(test_losses, label="Test loss")
-                plt.plot(val_percentages, label="Validation percentages")
-                plt.plot(train_percentages, label="Training Percentages")
-                plt.plot(test_percentages, label="Test percentages")
-                plt.legend()
-                plt.show()
+            # Debugging method of visualizing data as we go. This
+            # would be factored out if we were to use this any
+            # further.
+            # if t == output_epoch:
+            #     plt.figure(figsize=(12, 8))
+            #     plt.ylim([50,100])
+            #     plt.plot(val_losses, label="Validation loss")
+            #     plt.plot(val_percentages, label="Validation percentages")
+            #     plt.legend()
+            #     plt.show()
 
+            # Print some statistics for each epoch. Carriage return
+            # could make this easier to look at.
             print("Training loss:\t", round(train_loss, 6), " -- ", round(train_percentage_wrong, 4), "% wrong", end="      ")
             print("Validation loss:", round(val_loss, 6), " -- ", round(val_percentage_wrong, 4), "% wrong")
 
@@ -284,20 +307,13 @@ def logistic_regression(X_train, Y_train, X_test, Y_test):
             # Anneal the learning rate (exponential decay).
             lr = lr0 * np.exp(-k*t)
 
-    plt.figure(figsize=(12, 8))
-    # plt.ylim([50,100])
-    # plt.plot(val_reg_accuracies[0], label="λ = 1.0")
-    # plt.plot(val_reg_accuracies[1], label="λ = 0.1")
-    # plt.plot(val_reg_accuracies[2], label="λ = 0.01")
-    # plt.plot(val_reg_accuracies[3], label="λ = 0.001")
-    # plt.plot(val_reg_accuracies[4], label="λ = 0.0001")
-    plt.plot(weight_lengths[0], label="L2 norm, λ = 1.0")
-    plt.plot(weight_lengths[1], label="L2 norm, λ = 0.1")
-    plt.plot(weight_lengths[2], label="L2 norm, λ = 0.01")
-    plt.plot(weight_lengths[3], label="L2 norm, λ = 0.001")
-    plt.plot(weight_lengths[4], label="L2 norm, λ = 0.0001")
-    plt.legend()
-    plt.show()
+            # Quit out after a fitting amount of epochs for now.
+            if t == 20:
+                trained_weights.append(w)
+                break
+
+    # Plots are usually shown from here.
+    # horizontal_subplots(trained_weights)
 
 
 def softmax_regression(X_train, Y_train, X_test, Y_test):
