@@ -1,0 +1,129 @@
+#+TITLE: TDT4265 - Computer Vision and Deep Learning \large \\~\\ Assignment 1
+#+AUTHOR: Thomas Aven, Lasse Eggen
+#+EXPORT_FILE_NAME: thomaav_image_processing
+#+LATEX_CLASS: thomaav
+#+LATEX_CLASS_OPTIONS: [abstract=off,oneside]
+#+OPTIONS: toc:nil
+#+OPTIONS: ^:nil
+#+OPTIONS: num:nil
+
+* Preface
+For the mathematical proofs, we have included camera scans of our
+work, as we find them to be fairly readable. As such we got to spend
+the time we saved from not having to TeXify the work on the
+programming tasks instead. If the work is expected to be in LaTeX,
+please let us know for the next assignment.
+
+#+BEGIN_center
+#+ATTR_LATEX: :center :width 1.0\textwidth
+[[./task1-1.jpg]]
+#+END_center
+
+#+BEGIN_center
+#+ATTR_LATEX: :center :width 1.0\textwidth
+[[./task1-2.jpg]]
+#+END_center
+
+* 2 - Logistic Regression through Gradient Descent
+\textbf{2.1a)} For this task we concluded that a learning rate of 0.0005
+worked well. We are also normalizing the input from the images with
+~X_train / 255~, as otherwise we would need a much lower learning rate
+to avoid the ~z~ in the sigmoid function to explode and cause floating
+point overflows in the exponential function.
+\\\\
+As the training happens extremely fast, we have used the full training
+set and test set, i.e. all 70,000 images, which after pruning away
+unwanted categories amounts to about 12,000 images of 2s and 3s. Since
+the gradient descent makes for pretty quick convergence for this task,
+we computed the losses every 1/20th epoch for a total of 40 epochs.
+
+#+BEGIN_center
+#+ATTR_LATEX: :center :width 1.0\textwidth
+[[./linreglosses.png]]
+#+END_center
+\\\\
+The loss decreases in a much expected manner for binary classification
+with logistic regression for this task. However, there is one point in
+particular that is of interest: the model seems to be underfitting on
+the training set. As we are using a \textit{single-layered} network,
+we are lacking the needed complexity to perfectly classify the example
+training set as it grows bigger. A smaller training set, however,
+would be less likely to see the same underfitting.
+\\\\
+For this particular run, there is a gap between the loss of the
+validation set and the test set. Some runs there were less of a
+difference, but it's still an interesting result. Having a validation
+set that is a good stand-in for would see similar loss performances
+between the two. In this case, divergence may result between the two,
+given that the test set consists of digits written by a
+\textit{different set of people} than the training set. We would still
+like to argue that this is not necessarily likely to cause problems,
+as people tend to write digits in pretty similar manners.
+\\\\
+We have also implemented annealment of the learning rate and early
+stopping, as can be seen in the code. Our annealing method of
+exponentially decaying the learning rate did not provide any
+extraordinary results that were easy to spot. This is perhaps due to
+the fact that our network is so simple that there is little room to
+inch even further along basins during the gradient descent, even if
+the learning rate decays. We decided that early stopping should occur
+if we see an increase in validation loss four epochs in a row, which
+seemeed to work well.
+\\\\
+\textbf{2.1b)} As the convergence happens rapidly, we plotted the
+percentages classified correctly over the sets after every single
+minibatch for ten epochs, giving exactly what one would expect.
+
+#+BEGIN_center
+#+ATTR_LATEX: :center :width 1.0\textwidth
+[[./linregpercentages.png]]
+#+END_center
+
+#+BEGIN_center
+#+ATTR_LATEX: :center :width 1.0\textwidth
+[[./task2-2.jpg]]
+#+END_center
+\\\\
+\textbf{2.2b)} As regularization is a method of preventing overfitting
+on training data, we decided to decrease the size of the training set
+for this task. However, we still did not see any occurrences of
+definite overfitting -- we would see it from time to time, but not in
+general for every training session.
+\\\\
+Even though we are pretty certain our method of punishing bigger
+weights is correct (mostly due to the fact that we studied the
+derivation of regularization in \textit{Neural Networks and Deep Learning}
+by Nielsen):
+
+#+BEGIN_SRC python
+reg = 2*lmbd * w
+return w - lr*Ewdw - lr*reg
+#+END_SRC
+\\\\
+We are still struggling to see any major differences in the binary
+classifications of our network. We are attributing this to the fact
+that we did not find any consistently overfitting results. The only
+thing we definitely found to be prevalent across multiple runs was the
+fact that our network seems to perform better with less
+L2-regularization. Our reasoning for this is that, as mentioned, we
+are often seeing underfitting during training, and that enforcing
+weight penalties will thus impair training instead of improving
+results. The graph below consists of verifications every 1/20th epoch
+for 20 epochs.
+
+#+BEGIN_center
+#+ATTR_LATEX: :center :width 1.0\textwidth
+[[./lambdaclassifs.png]]
+#+END_center
+\\\\
+\textbf{2.2c)} For a while we were thinking that we must have done
+something awfully wrong, but the following image very clearly
+illustrates that bigger weights are being punished quite hard with
+higher lambda values, which indicates that our previous analysis is
+correct, and that we are L2-regularizing as intended.
+
+#+BEGIN_center
+#+ATTR_LATEX: :center :width 1.0\textwidth
+[[./reglambdas.png]]
+#+END_center
+\\\\

@@ -7,6 +7,7 @@ import gzip
 import pickle
 import os
 import random
+import matplotlib.pyplot as plt
 
 
 SAVE_PATH = "data"
@@ -80,16 +81,16 @@ def gradient_descent(X, t, w, lr, lmbd=0):
     s = sigmoid(X, w)
     Ewdw = -(X * (t - s))
     Ewdw = Ewdw.mean(axis=0).reshape(-1, 1)
-    reg = np.sum(2*lmbd * w) / w.shape[0]
-    return w - lr*(Ewdw + reg)
+    reg = 2*lmbd * w
+    return w - lr*Ewdw - lr*reg
 
 
 def gradient_descent_softmax(X, t, w, lr, lmbd=0):
     y = softmax(X, w)
     Ewdw = -np.einsum('ij,jk->jki', X.T, t - y)
     Ewdw = Ewdw.mean(axis=0)
-    reg = np.sum(2*lmbd * w) / w.shape[0]
-    return w - lr*(Ewdw + reg)
+    reg = 2*lmbd * w
+    return w - lr*Ewdw - lr*reg
 
 
 def logreg_loss(t, o):
@@ -108,6 +109,10 @@ def softmax_loss(t, o):
     o = np.clip(o, epsilon, 1.0-epsilon)
     Ew = -(t*np.log(o))
     return Ew.mean()
+
+
+def l2_norm(w):
+    return np.sum(np.square(w))
 
 
 def round_guesses(y):
@@ -134,7 +139,6 @@ def percentage_wrong_onehot(x, y):
 
 
 def remove_unwanted_classes(X, Y, classes):
-    # Do the same for the testing set. Put this in a function later.
     unwanted_categories = []
     for i in range(len(X)):
         if Y[i] not in classes:
@@ -173,9 +177,16 @@ def logistic_regression(X_train, Y_train, X_test, Y_test):
     # weights, but this does just okay for this classification task.
     epochs = 200
     batch_size = 32
-    lr = lr0 = 0.001
-    k = 0.0005
+    lr = lr0 = 0.0005
+    k = 0.005
     w = np.zeros((len(X_train[0]), 1))
+
+    # If we want overfitting, we need to reduce the size of the
+    # training set.
+    # X_train = X_train[:10000]
+    # Y_train = Y_train[:10000]
+    # X_test = X_test[-2000:]
+    # Y_test = Y_test[-2000:]
 
     # Remove non- 2s and 3s. t-values should be set to 1 for 2s and 0
     # for 3s.
@@ -189,9 +200,6 @@ def logistic_regression(X_train, Y_train, X_test, Y_test):
     Y_train = Y_train[:, np.newaxis]
     Y_test = Y_test[:, np.newaxis]
 
-    train_losses = []
-    val_losses = []
-
     # We want a validation set, as we don't want to 'snoop' on our
     # test set. There are probably prettier ways to do this than just
     # shuffling and picking the first 10% as validation set.
@@ -203,39 +211,93 @@ def logistic_regression(X_train, Y_train, X_test, Y_test):
     X_train = X_train[validation_size:]
     Y_train = Y_train[validation_size:]
 
+    # We need some counters to compute statistics.
+    batches = X_train.shape[0] // batch_size
+    train_losses = []
+    train_percentages = []
+    val_losses = []
+    val_percentages = []
+    test_losses = []
+    test_percentages = []
+    val_reg_accuracies = []
+    weight_lengths = []
+
     # Actual training. Not that it is much faster (and gets better
     # accuracy for now) without shuffling, batches and annealed
     # learning rates. It's a fairly simple problem.
-    for t in range(epochs):
-        # Shuffle the training data to be able to bounce out of local
-        # minima (coupled with mini batches, that is).
-        shuffle(X_train, Y_train)
+    for i in range(5):
+        lr = 0.0005
+        val_reg_accuracies.append([])
+        weight_lengths.append([])
+        w = np.zeros((len(X_train[0]), 1))
+        print("next")
+        for t in range(epochs):
+            # Shuffle the training data to be able to bounce out of local
+            # minima (coupled with mini batches, that is).
+            shuffle(X_train, Y_train)
 
-        # Actual gradient descent work.
-        for j in range(X_train.shape[0] // batch_size):
-            X_batch = X_train[j*batch_size:(j+1)*batch_size]
-            Y_batch = Y_train[j*batch_size:(j+1)*batch_size]
-            w = gradient_descent(X_batch, Y_batch, w, lr, lmbd=0.01)
+            # Actual gradient descent work.
+            for j in range(batches):
+                X_batch = X_train[j*batch_size:(j+1)*batch_size]
+                Y_batch = Y_train[j*batch_size:(j+1)*batch_size]
+                w = gradient_descent(X_batch, Y_batch, w, lr, lmbd=10**(-i))
 
-        # Training statistics.
-        train_loss, train_percentage_wrong = evaluate_logreg(X_train, Y_train, w)
-        val_loss, val_percentage_wrong = evaluate_logreg(X_val, Y_val, w)
-        train_losses.append(train_loss)
-        val_losses.append(val_loss)
+                # Training statistics.
+                if j % (batches // 20) == 0:
+                    train_loss, train_percentage_wrong = evaluate_logreg(X_train, Y_train, w)
+                    val_loss, val_percentage_wrong = evaluate_logreg(X_val, Y_val, w)
+                    test_loss, test_percentage_wrong = evaluate_logreg(X_test, Y_test, w)
+                    train_losses.append(train_loss)
+                    train_percentages.append(100 - train_percentage_wrong)
+                    val_losses.append(val_loss)
+                    val_percentages.append(100 - val_percentage_wrong)
+                    test_losses.append(test_loss)
+                    test_percentages.append(100 - test_percentage_wrong)
+                    val_reg_accuracies[i].append(100 - val_percentage_wrong)
+                    weight_lengths[i].append(l2_norm(w))
 
-        print("Training loss:\t", round(train_loss, 6), " -- ", round(train_percentage_wrong, 4), "% wrong", end="      ")
-        print("Validation loss:", round(val_loss, 6), " -- ", round(val_percentage_wrong, 4), "% wrong", end="\r")
+            # Plot statistics after a given amount of time.
+            if t == 20:
+                break
+                plt.figure(figsize=(12, 8))
+                plt.ylim([50,100])
+                # plt.plot(val_losses, label="Validation loss")
+                # plt.plot(train_losses, label="Training loss")
+                # plt.plot(test_losses, label="Test loss")
+                plt.plot(val_percentages, label="Validation percentages")
+                plt.plot(train_percentages, label="Training Percentages")
+                plt.plot(test_percentages, label="Test percentages")
+                plt.legend()
+                plt.show()
 
-        # If the last four test losses are strictly incrasing we stop
-        # early.
-        previous_losses = val_losses[-4:]
-        if len(previous_losses) > 4 \
-           and all(x < y for x, y in zip(previous_losses, previous_losses[1:])):
-            print("Stopping early after %d epochs." % t)
-            break
+            print("Training loss:\t", round(train_loss, 6), " -- ", round(train_percentage_wrong, 4), "% wrong", end="      ")
+            print("Validation loss:", round(val_loss, 6), " -- ", round(val_percentage_wrong, 4), "% wrong")
 
-        # Anneal the learning rate (exponential decay).
-        lr = lr0 * np.exp(-k*t)
+            # If the last four test losses are strictly incrasing we stop
+            # early.
+            previous_losses = val_losses[-4:]
+            if len(previous_losses) > 4 \
+               and all(x < y for x, y in zip(previous_losses, previous_losses[1:])):
+                print("Stopping early after %d epochs." % t)
+                break
+
+            # Anneal the learning rate (exponential decay).
+            lr = lr0 * np.exp(-k*t)
+
+    plt.figure(figsize=(12, 8))
+    # plt.ylim([50,100])
+    # plt.plot(val_reg_accuracies[0], label="λ = 1.0")
+    # plt.plot(val_reg_accuracies[1], label="λ = 0.1")
+    # plt.plot(val_reg_accuracies[2], label="λ = 0.01")
+    # plt.plot(val_reg_accuracies[3], label="λ = 0.001")
+    # plt.plot(val_reg_accuracies[4], label="λ = 0.0001")
+    plt.plot(weight_lengths[0], label="L2 norm, λ = 1.0")
+    plt.plot(weight_lengths[1], label="L2 norm, λ = 0.1")
+    plt.plot(weight_lengths[2], label="L2 norm, λ = 0.01")
+    plt.plot(weight_lengths[3], label="L2 norm, λ = 0.001")
+    plt.plot(weight_lengths[4], label="L2 norm, λ = 0.0001")
+    plt.legend()
+    plt.show()
 
 
 def softmax_regression(X_train, Y_train, X_test, Y_test):
@@ -324,8 +386,8 @@ def main():
     X_train = np.c_[X_train, np.ones(len(X_train))]
     X_test = np.c_[X_test, np.ones(len(X_test))]
 
-    # logistic_regression(X_train, Y_train, X_test, Y_test)
-    softmax_regression(X_train, Y_train, X_test, Y_test)
+    logistic_regression(X_train, Y_train, X_test, Y_test)
+    # softmax_regression(X_train, Y_train, X_test, Y_test)
 
 
 if __name__ == '__main__':

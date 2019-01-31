@@ -1,2 +1,5 @@
 oving1/data
 oving1/backup
+*.tex
+_minted-report
+_minted-report/*
