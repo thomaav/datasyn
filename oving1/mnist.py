@@ -108,7 +108,7 @@ def softmax_loss(t, o):
     epsilon = 1e-12
     o = np.clip(o, epsilon, 1.0-epsilon)
     Ew = -(t*np.log(o))
-    return Ew.mean()
+    return np.mean(np.sum(Ew, axis=1))
 
 
 def l2_norm(w):
@@ -166,10 +166,10 @@ def evaluate_logreg(X, Y, w):
 
 
 def evaluate_softmax(X, Y, w):
-    train_y = softmax(X, w)
-    train_loss = softmax_loss(Y, train_y)
-    train_y = onehot_encode_guesses(train_y)
-    return train_loss, percentage_wrong_onehot(train_y, Y)
+    y = softmax(X, w)
+    loss = softmax_loss(Y, y)
+    y = onehot_encode_guesses(y)
+    return loss, percentage_wrong_onehot(y, Y)
 
 
 def horizontal_subplots(weights):
@@ -236,11 +236,9 @@ def logistic_regression(X_train, Y_train, X_test, Y_test):
     weight_lengths = []
     trained_weights = []
 
-    # Actual training. Not that it is much faster (and gets better
-    # accuracy for now) without shuffling, batches and annealed
-    # learning rates. It's a fairly simple problem. Note that we are
-    # doing five sessions of training to create plots of different
-    # lambdas for regularization.
+    # Actual training. Note that we are doing five sessions of
+    # training to create plots of different lambdas for
+    # regularization.
     training_sessions = 5
     for i in range(training_sessions):
         print("Starting training run", str(i+1) + "..")
@@ -331,6 +329,9 @@ def softmax_regression(X_train, Y_train, X_test, Y_test):
     X_train = X_train / 255
     X_test = X_test / 255
 
+    X_train = X_train[:10000]
+    Y_train = Y_train[:10000]
+
     # One-hot encode outputs.
     onehot = np.zeros((Y_train.shape[0], 10))
     onehot[np.arange(Y_train.shape[0]), Y_train] = 1
@@ -340,8 +341,14 @@ def softmax_regression(X_train, Y_train, X_test, Y_test):
     onehot[np.arange(Y_test.shape[0]), Y_test] = 1
     Y_test = onehot
 
+    # Statistics.
+    batches = X_train.shape[0] // batch_size
     train_losses = []
     val_losses = []
+    test_losses = []
+    train_percentages = []
+    val_percentages = []
+    test_percentages = []
 
     # We want a validation set, as we don't want to 'snoop' on our
     # test set. There are probably prettier ways to do this than just
@@ -354,9 +361,6 @@ def softmax_regression(X_train, Y_train, X_test, Y_test):
     X_train = X_train[validation_size:]
     Y_train = Y_train[validation_size:]
 
-    # Actual training. Not that it is much faster (and gets better
-    # accuracy for now) without shuffling, batches and annealed
-    # learning rates. It's a fairly simple problem.
     for t in range(epochs):
         # Shuffle the training data to be able to bounce out of local
         # minima (coupled with mini batches, that is).
@@ -366,29 +370,40 @@ def softmax_regression(X_train, Y_train, X_test, Y_test):
         for j in range(X_train.shape[0] // batch_size):
             X_batch = X_train[j*batch_size:(j+1)*batch_size]
             Y_batch = Y_train[j*batch_size:(j+1)*batch_size]
-            w = gradient_descent_softmax(X_batch, Y_batch, w, lr, lmbd=0.01)
+            w = gradient_descent_softmax(X_batch, Y_batch, w, lr, lmbd=0)
 
+            # Training statistics.
+            if j % (batches // 20) == 0:
+                train_loss, train_percentage_wrong = evaluate_softmax(X_train, Y_train, w)
+                val_loss, val_percentage_wrong = evaluate_softmax(X_val, Y_val, w)
+                test_loss, test_percentage_wrong = evaluate_softmax(X_test, Y_test, w)
+
+                train_losses.append(train_loss)
+                val_losses.append(val_loss)
+                test_losses.append(test_loss)
+                train_percentages.append(100 - train_percentage_wrong)
+                val_percentages.append(100 - val_percentage_wrong)
+                test_percentages.append(100 - test_percentage_wrong)
+
+        # Print some evaluation for each epoch.
         print(evaluate_softmax(X_train, Y_train, w))
-
-        # Training statistics.
-        # train_loss, train_percentage_wrong = evaluate_softmax(X_train, Y_train, w)
-        # val_loss, val_percentage_wrong = evaluate_softmax(X_val, Y_val, w)
-        # train_losses.append(train_loss)
-        # val_losses.append(val_loss)
-
-        # print("Training loss:\t", round(train_loss, 6), " -- ", round(train_percentage_wrong, 4), "% wrong", end="      ")
-        # print("Validation loss:", round(val_loss, 6), " -- ", round(val_percentage_wrong, 4), "% wrong", end="\r")
-
-        # If the last four test losses are strictly incrasing we stop
-        # early.
-        # previous_losses = val_losses[-4:]
-        # if len(previous_losses) > 4 \
-        #    and all(x < y for x, y in zip(previous_losses, previous_losses[1:])):
-        #     print("Stopping early after %d epochs." % t)
-        #     break
 
         # Anneal the learning rate (exponential decay).
         lr = lr0 * np.exp(-k*t)
+
+        # Early stopping was implemented for logistic regression, just
+        # stop after an appropriate amount of epochs here.
+        if t == 60:
+            break
+
+        if t == 50:
+            plt.figure(figsize=(12, 8))
+            plt.ylim([10,100])
+            plt.plot(train_percentages, label="Training percentage")
+            plt.plot(val_percentages, label="Validation percentage")
+            plt.plot(test_percentages, label="Test percentage")
+            plt.legend()
+            plt.show()
 
 
 def main():
@@ -402,8 +417,8 @@ def main():
     X_train = np.c_[X_train, np.ones(len(X_train))]
     X_test = np.c_[X_test, np.ones(len(X_test))]
 
-    logistic_regression(X_train, Y_train, X_test, Y_test)
-    # softmax_regression(X_train, Y_train, X_test, Y_test)
+    # logistic_regression(X_train, Y_train, X_test, Y_test)
+    softmax_regression(X_train, Y_train, X_test, Y_test)
 
 
 if __name__ == '__main__':
