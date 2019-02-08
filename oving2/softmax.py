@@ -37,10 +37,6 @@ class Layer:
         self.weights = np.zeros((self.neurons, self.input_size))
 
 
-    # def forward(self, X):
-    #     return np.dot(self.weights, X.T)
-
-
     def evaluate(self, X):
         return self.activation(X, self.weights)
 
