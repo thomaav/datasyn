@@ -11,6 +11,7 @@ class Activations(object):
     want to deliver just a single file for the assignment.
     """
     class Softmax(object):
+        @staticmethod
         def f(X, w=None):
             """
             Computes softmax for input X and weights w. If no weights
@@ -32,6 +33,7 @@ class Activations(object):
 
 
     class Sigmoid(object):
+        @staticmethod
         def f(X, w=None):
             """
             Computes sigmoid for input X and weights w. If no weights
