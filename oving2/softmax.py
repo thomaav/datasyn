@@ -18,7 +18,7 @@ class Activations(object):
     These are really just namespaces to keep track of stuff, as we
     want to deliver just a single file for the assignment.
     """
-    class Softmax(object):
+    class softmax(object):
         @staticmethod
         def f(X, w=None):
             """
@@ -40,15 +40,9 @@ class Activations(object):
             raise NotImplementedError
 
 
-    class Sigmoid(object):
+    class sigmoid(object):
         @staticmethod
         def f(X, w=None):
-            """
-            Computes sigmoid for input X and weights w. If no weights
-            are given, the input is assumed to be already computed
-            zs. This is done to avoid having to pass overloaded
-            functions as attributes to layers.
-            """
             if w is None:
                 return 1.0/(1.0 + np.exp(-X))
             else:
@@ -58,11 +52,22 @@ class Activations(object):
 
         @classmethod
         def df(cls, z):
-            # There are probably methods of reflection to be able to
-            # call f as a static method without Activations.Sigmoid
-            # first, but we didn't look very far (@classmethod,
-            # perhaps).
             return cls.f(z)*(1-cls.f(z))
+
+
+    class tanh(object):
+        def f(X, w=None):
+            if w is None:
+                return 1.7159*np.tanh(2/3*X)
+            else:
+                z = X.dot(w.T)
+                return 1.7159*np.tanh(2/3*z)
+
+
+        @classmethod
+        def df(cls, z):
+            # Use 1/cosh^2 instead of sech^2.
+            return 1.14393 * (1 / np.cosh(2/3*z))**2
 
 
 class Loss(object):
@@ -351,8 +356,8 @@ VAL_ACC = []
 
 def main():
     model = Model()
-    model.add_layer(64, Activations.Sigmoid, 785)
-    model.add_layer(10, Activations.Softmax)
+    model.add_layer(64, Activations.tanh, 785)
+    model.add_layer(10, Activations.softmax)
     model.train(X_train, Y_train, epochs=5,
                 batch_size=128, lr=0.5, evaluate=True)
     model.plot_metrics()
