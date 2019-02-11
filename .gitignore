@@ -5,3 +5,5 @@ _minted-report
 _minted-report/*
 delivery/
 delivery/*
+__pycache__
+profile.txt

@@ -5,13 +5,65 @@ import tqdm
 import os
 
 
+class Activations(object):
+    """
+    These are really just namespaces to keep track of stuff, as we
+    want to deliver just a single file for the assignment.
+    """
+    class Softmax(object):
+        def f(X, w=None):
+            """
+            Computes softmax for input X and weights w. If no weights
+            are given, the input is assumed to be already computed
+            zs. This is done to avoid having to pass overloaded
+            functions as attributes to layers.
+            """
+            if not w:
+                a_exp = np.exp(X)
+                return a_exp / a_exp.sum()
+            else:
+                a = X.dot(w.T)
+                a_exp = np.exp(a)
+                return a_exp / a_exp.sum(axis=1, keepdims=True)
+
+
+        def df(z):
+            raise NotImplementedError
+
+
+    class Sigmoid(object):
+        def f(X, w=None):
+            """
+            Computes sigmoid for input X and weights w. If no weights
+            are given, the input is assumed to be already computed
+            zs. This is done to avoid having to pass overloaded
+            functions as attributes to layers.
+            """
+            if not w:
+                return 1.0/(1.0 + np.exp(-X))
+            else:
+                z = X.dot(w.T)
+                return 1.0/(1.0 + np.exp(-z))
+
+
+        def df(z):
+            # There are probably methods of reflection to be able to
+            # call f as a static method without Activations.Sigmoid
+            # first, but we didn't look very far (@classmethod,
+            # perhaps).
+            return Activations.Sigmoid.f(z)*(1-Activations.Sigmoid.f(z))
+
+
 class Model:
     def __init__(self):
         self.layers = []
 
 
     def add_layer(self, neurons, activation, input_size=0):
-        """Add layers to Model. First added layer is the input layer."""
+        """
+        Add layers to Model. When the initial layer is added, the
+        input size to the network has to be specified as well.
+        """
         if not self.layers:
             self.input_size = input_size
             self.layers.append(Layer(neurons, activation, self.input_size))
@@ -22,11 +74,89 @@ class Model:
     def evaluate(self, X):
         if len(X.shape) == 1:
             X = np.array([X])
-            
+
         for layer in self.layers:
             X = layer.evaluate(X)
 
         return X
+
+
+    def train(self, X, Y, epochs, batch_size, lr):
+        batches = X_train.shape[0] // batch_size
+
+        for t in range(epochs):
+            # Shuffle training data here.
+            0 ^ 0
+
+            # SGD over the training set. For each training example,
+            # perform the backpropagation algorithm and update the
+            # weights of the network by the gradient descent rule
+            # (i.e. move in the opposite direction of the gradient
+            # that is output).
+            for i in tqdm.trange(batches):
+                X_batch = X[i*batch_size:(i+1)*batch_size]
+                Y_batch = Y[i*batch_size:(i+1)*batch_size]
+
+                for x, y in zip(X_batch, Y_batch):
+                    x = np.expand_dims(x, axis=1)
+                    y = np.expand_dims(y, axis=1)
+                    gradients = self.backprop(x, y)
+
+                    # Update weights according to gradients.
+                    for j, layer in enumerate(self.layers):
+                        layer_gradients = gradients[j]
+                        update = (lr/batch_size) * layer_gradients
+                        layer.weights = layer.weights - update
+
+
+    def backprop(self, x, t):
+        """
+        The backpropagation algorithm consists of (in order):
+
+        * Feedforward, compute activations for the entire network for
+          input X.
+
+        * Compute the output error of the last layer of the network.
+
+        * Backpropagate the error layer by layer by d_j =
+          f'(z_j)*sum(w_kj*d_k), where we are computing the error of
+          layer j by the means of the next layer k.
+
+        * The output is the gradient of the cost function for each
+          layer. For each individual weight this is given by the
+          activation of the previous layer multiplied by the error of
+          the output of the current layer.
+        """
+        # Hold the actual gradients as they are computed.
+        gradients = []
+
+        # We need the activations of each layer to produce the
+        # gradient, and the zs for each layer to produce the
+        # derivative required for the delta.
+        activations = [x]
+        zs = []
+
+        # Compute activations for each layer.
+        for i, layer in enumerate(self.layers):
+            z = np.dot(layer.weights, activations[i])
+            zs.append(z)
+            activations.append(layer.activation.f(z))
+
+        # Calculate the first error (delta) for the output layer, as
+        # this is the only one that uses the actual cost derivative,
+        # which in our case is -(t_k - y_k) from log cross entropy.
+        d = -(t - activations[-1])
+        gradients.insert(0, np.dot(d, activations[-2].T))
+
+        # Backpropagate errors and add gradients as we go. Note that
+        # we reuse the delta for each iteration.
+        for i in range(-2, -(len(self.layers)+1), -1):
+            layer = self.layers[i]
+            next_layer = self.layers[i+1]
+            derivative = layer.activation.df(zs[i])
+            d = derivative * np.dot(next_layer.weights.T, d)
+            gradients.insert(0, np.dot(d, activations[i-1].T))
+        return gradients
 
 
 class Layer:
@@ -34,11 +164,11 @@ class Layer:
         self.neurons = neurons
         self.activation = activation
         self.input_size = input_size
-        self.weights = np.zeros((self.neurons, self.input_size))
+        self.weights = np.random.uniform(-1, 1, (self.neurons, self.input_size))
 
 
     def evaluate(self, X):
-        return self.activation(X, self.weights)
+        return self.activation.f(X, self.weights)
 
 
 def should_early_stop(validation_loss, num_steps=3):
@@ -96,17 +226,36 @@ def check_gradient(X, targets, w, epsilon, computed_gradient):
         maximum_abosulte_difference)
 
 
-def softmax(X, w):
-    a = X.dot(w.T)
-    a_exp = np.exp(a)
-    return a_exp / a_exp.sum(axis=1, keepdims=True)
+def softmax(X, w=None):
+    """
+    Computes softmax for input X and weights w. If no weights are
+    given, the input is assumed to be already computed zs. This is
+    done to avoid having to pass overloaded functions as attributes to
+    layers.
+    """
+    if not w:
+        a_exp = np.exp(X)
+        return a_exp / a_exp.sum()
+    else:
+        a = X.dot(w.T)
+        a_exp = np.exp(a)
+        return a_exp / a_exp.sum(axis=1, keepdims=True)
 
 
 # c)
-def sigmoid(X, w):
-    z = X.dot(w.T)
-    return 1.0/(1.0 + np.exp(-z))
-    
+def sigmoid(X, w=None):
+    """
+    Computes sigmoid for input X and weights w. If no weights are
+    given, the input is assumed to be already computed zs. This is
+    done to avoid having to pass overloaded functions as attributes to
+    layers.
+    """
+    if not w:
+        return 1.0/(1.0 + np.exp(-X))
+    else:
+        z = X.dot(w.T)
+        return 1.0/(1.0 + np.exp(-z))
+
 
 def forward(X, w):
     return softmax(X.T, w)
@@ -211,15 +360,10 @@ def train_loop():
 
 
 def main():
-    # print(X_val[0])
-    # exit()
-
     model = Model()
-    model.add_layer(64, sigmoid, 785)
-    model.add_layer(10, softmax)
-    model.evaluate(X_train)
-
-
+    model.add_layer(64, Activations.Sigmoid, 785)
+    model.add_layer(10, Activations.Softmax)
+    model.train(X_train, Y_train, 15, 128, 0.5)
     exit()
 
 
@@ -232,7 +376,7 @@ def main():
     plt.legend()
     plt.ylim([0, 0.05])
     plt.show()
-    
+
     plt.clf()
     plt.plot(TRAIN_ACC, label="Training accuracy")
     plt.plot(TEST_ACC, label="Testing accuracy")
@@ -240,9 +384,9 @@ def main():
     plt.ylim([0.8, 1.0])
     plt.legend()
     plt.show()
-    
+
     plt.clf()
-    
+
     w = w[:, :-1]  # Remove bias
     w = w.reshape(10, 28, 28)
     w = np.concatenate(w, axis=0)
