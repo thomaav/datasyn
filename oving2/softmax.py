@@ -27,7 +27,7 @@ class Activations(object):
                 return a_exp / a_exp.sum(axis=1, keepdims=True)
 
         @classmethod
-        def df(self, z):
+        def df(cls, z):
             raise NotImplementedError
 
 
@@ -47,12 +47,12 @@ class Activations(object):
 
 
         @classmethod
-        def df(self, z):
+        def df(cls, z):
             # There are probably methods of reflection to be able to
             # call f as a static method without Activations.Sigmoid
             # first, but we didn't look very far (@classmethod,
             # perhaps).
-            return self.f(z)*(1-self.f(z))
+            return cls.f(z)*(1-cls.f(z))
 
 
 class Loss(object):
