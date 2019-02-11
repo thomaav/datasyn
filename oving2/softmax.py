@@ -56,6 +56,7 @@ class Activations(object):
 
 
     class tanh(object):
+        @staticmethod
         def f(X, w=None):
             if w is None:
                 return 1.7159*np.tanh(2/3*X)
