@@ -203,17 +203,19 @@ class Model(object):
 
                 # Evaluate the model according to given metrics.
                 if evaluate and i % (batches // 20) == 0:
-                    train_loss, train_acc = self.evaluate(X_train, Y_train)
-                    self.metrics.train_loss.append(train_loss)
-                    self.metrics.train_acc.append(train_acc)
+                    # train_loss, train_acc = self.evaluate(X_train, Y_train)
+                    # self.metrics.train_loss.append(train_loss)
+                    # self.metrics.train_acc.append(train_acc)
 
                     val_loss, val_acc = self.evaluate(X_val, Y_val)
                     self.metrics.val_loss.append(val_loss)
                     self.metrics.val_acc.append(val_acc)
 
-                    test_loss, test_acc = self.evaluate(X_test, Y_test)
-                    self.metrics.test_loss.append(test_loss)
-                    self.metrics.test_acc.append(test_acc)
+                    # test_loss, test_acc = self.evaluate(X_test, Y_test)
+                    # self.metrics.test_loss.append(test_loss)
+                    # self.metrics.test_acc.append(test_acc)
+
+            print('Val acc:', self.metrics.val_acc[-1])
 
 
     def backprop(self, x, t):
@@ -285,7 +287,18 @@ class Layer(object):
         self.neurons = neurons
         self.activation = activation
         self.input_size = input_size
-        self.weights = np.random.uniform(-1, 1, (self.neurons, self.input_size))
+
+        # Initalize weights from a normal distribution with mean 0 and
+        # std 1/sqrt(fan-in). The fan-in of a neuron is the number of
+        # inputs it has.
+
+        # Uniform distribution.
+        # self.weights = np.random.uniform(-1, 1, (self.neurons, self.input_size))
+
+        # Using fan-in.
+        sigma = 1 / np.sqrt(input_size)
+        self.weights = np.random.normal(loc=0, scale=sigma,
+                                        size=(self.neurons, self.input_size))
 
 
     def evaluate(self, X):
@@ -345,14 +358,6 @@ should_gradient_check = False
 check_step = num_batches // 10
 max_epochs = 20
 
-# Tracking variables
-TRAIN_LOSS = []
-TEST_LOSS = []
-VAL_LOSS = []
-TRAIN_ACC = []
-TEST_ACC = []
-VAL_ACC = []
-
 
 def main():
     model = Model()
@@ -360,35 +365,7 @@ def main():
     model.add_layer(10, Activations.softmax)
     model.train(X_train, Y_train, epochs=5,
                 batch_size=128, lr=0.5, evaluate=True)
-    model.plot_metrics()
-    exit()
-
-
-    w = train_loop()
-
-
-    plt.plot(TRAIN_LOSS, label="Training loss")
-    plt.plot(TEST_LOSS, label="Testing loss")
-    plt.plot(VAL_LOSS, label="Validation loss")
-    plt.legend()
-    plt.ylim([0, 0.05])
-    plt.show()
-
-    plt.clf()
-    plt.plot(TRAIN_ACC, label="Training accuracy")
-    plt.plot(TEST_ACC, label="Testing accuracy")
-    plt.plot(VAL_ACC, label="Validation accuracy")
-    plt.ylim([0.8, 1.0])
-    plt.legend()
-    plt.show()
-
-    plt.clf()
-
-    w = w[:, :-1]  # Remove bias
-    w = w.reshape(10, 28, 28)
-    w = np.concatenate(w, axis=0)
-    plt.imshow(w, cmap="gray")
-    plt.show()
+    # model.plot_metrics()
 
 
 if __name__ == '__main__':
