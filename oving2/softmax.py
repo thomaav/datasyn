@@ -26,8 +26,8 @@ class Activations(object):
                 a_exp = np.exp(a)
                 return a_exp / a_exp.sum(axis=1, keepdims=True)
 
-
-        def df(z):
+        @classmethod
+        def df(self, z):
             raise NotImplementedError
 
 
@@ -46,12 +46,13 @@ class Activations(object):
                 return 1.0/(1.0 + np.exp(-z))
 
 
-        def df(z):
+        @classmethod
+        def df(self, z):
             # There are probably methods of reflection to be able to
             # call f as a static method without Activations.Sigmoid
             # first, but we didn't look very far (@classmethod,
             # perhaps).
-            return Activations.Sigmoid.f(z)*(1-Activations.Sigmoid.f(z))
+            return self.f(z)*(1-self.f(z))
 
 
 class Loss(object):
@@ -238,15 +239,6 @@ class Layer(object):
         return self.activation.f(X, self.weights)
 
 
-def should_early_stop(validation_loss, num_steps=3):
-    if len(validation_loss) < num_steps + 1:
-        return False
-
-    is_increasing = [validation_loss[i] <= validation_loss[i + 1]
-                     for i in range(-num_steps - 1, -1)]
-    return sum(is_increasing) == len(is_increasing)
-
-
 def train_val_split(X, Y, val_percentage):
     """
       Selects samples from the dataset randomly to be in the validation set. Also, shuffles the train set.
@@ -277,92 +269,6 @@ def bias_trick(X):
     return np.concatenate((X, np.ones((len(X), 1))), axis=1)
 
 
-def check_gradient(X, targets, w, epsilon, computed_gradient):
-    print("Checking gradient...")
-    dw = np.zeros_like(w)
-    for k in range(w.shape[0]):
-        for j in range(w.shape[1]):
-            new_weight1, new_weight2 = np.copy(w), np.copy(w)
-            new_weight1[k, j] += epsilon
-            new_weight2[k, j] -= epsilon
-            loss1 = cross_entropy_loss(X, targets, new_weight1)
-            loss2 = cross_entropy_loss(X, targets, new_weight2)
-            dw[k, j] = (loss1 - loss2) / (2 * epsilon)
-    maximum_abosulte_difference = abs(computed_gradient - dw).max()
-    assert maximum_abosulte_difference <= epsilon**2, "Absolute error was: {}".format(
-        maximum_abosulte_difference)
-
-
-def softmax(X, w=None):
-    """
-    Computes softmax for input X and weights w. If no weights are
-    given, the input is assumed to be already computed zs. This is
-    done to avoid having to pass overloaded functions as attributes to
-    layers.
-    """
-    if not w:
-        a_exp = np.exp(X)
-        return a_exp / a_exp.sum()
-    else:
-        a = X.dot(w.T)
-        a_exp = np.exp(a)
-        return a_exp / a_exp.sum(axis=1, keepdims=True)
-
-
-# c)
-def sigmoid(X, w=None):
-    """
-    Computes sigmoid for input X and weights w. If no weights are
-    given, the input is assumed to be already computed zs. This is
-    done to avoid having to pass overloaded functions as attributes to
-    layers.
-    """
-    if not w:
-        return 1.0/(1.0 + np.exp(-X))
-    else:
-        z = X.dot(w.T)
-        return 1.0/(1.0 + np.exp(-z))
-
-
-def forward(X, w):
-    return softmax(X.T, w)
-
-
-def calculate_accuracy(X, targets, w):
-    output = forward(X, w)
-    predictions = output.argmax(axis=1)
-    targets = targets.argmax(axis=1)
-    return (predictions == targets).mean()
-
-
-def cross_entropy_loss(X, targets, w):
-    output = forward(X, w)
-    assert output.shape == targets.shape
-    #output[output == 0] = 1e-8
-    log_y = np.log(output)
-    cross_entropy = -targets * log_y
-    # print(cross_entropy.shape)
-    return cross_entropy.mean()
-
-
-def gradient_descent(X, targets, w, learning_rate, should_check_gradient):
-    normalization_factor = X.shape[0] * \
-        targets.shape[1]  # batch_size * num_classes
-    outputs = forward(X, w)
-    delta_k = - (targets - outputs)
-
-    dw = delta_k.T.dot(X)
-    dw = dw / normalization_factor  # Normalize gradient equally as loss normalization
-    assert dw.shape == w.shape, "dw shape was: {}. Expected: {}".format(
-        dw.shape, w.shape)
-
-    if should_check_gradient:
-        check_gradient(X, targets, w, 1e-2, dw)
-
-    w = w - learning_rate * dw
-    return w
-
-
 # Global ftw
 if not os.path.isdir(mnist.SAVE_PATH):
     mnist.init()
@@ -377,7 +283,6 @@ X_test = bias_trick(X_test)
 Y_train, Y_test = onehot_encode(Y_train), onehot_encode(Y_test)
 
 X_train, Y_train, X_val, Y_val = train_val_split(X_train, Y_train, 0.1)
-
 
 # Hyperparameters
 batch_size = 64
@@ -394,36 +299,6 @@ VAL_LOSS = []
 TRAIN_ACC = []
 TEST_ACC = []
 VAL_ACC = []
-
-
-def train_loop():
-    w = np.zeros((Y_train.shape[1], X_train.shape[1]))
-    for e in range(max_epochs):  # Epochs
-        for i in tqdm.trange(num_batches):
-            X_batch = X_train[i * batch_size:(i + 1) * batch_size]
-            Y_batch = Y_train[i * batch_size:(i + 1) * batch_size]
-
-            w = gradient_descent(
-                X_batch,
-                Y_batch,
-                w,
-                learning_rate,
-                should_gradient_check)
-            print(cross_entropy_loss(X_batch, Y_batch, w))
-            if i % check_step == 0:
-                # Loss
-                TRAIN_LOSS.append(cross_entropy_loss(X_train, Y_train, w))
-                TEST_LOSS.append(cross_entropy_loss(X_test, Y_test, w))
-                VAL_LOSS.append(cross_entropy_loss(X_val, Y_val, w))
-
-                TRAIN_ACC.append(calculate_accuracy(X_train, Y_train, w))
-                VAL_ACC.append(calculate_accuracy(X_val, Y_val, w))
-                TEST_ACC.append(calculate_accuracy(X_test, Y_test, w))
-                if should_early_stop(VAL_LOSS):
-                    print(VAL_LOSS[-4:])
-                    print("early stopping.")
-                    return w
-    return w
 
 
 def main():
