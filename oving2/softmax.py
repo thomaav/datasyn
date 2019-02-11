@@ -53,6 +53,7 @@ class Activations(object):
             # perhaps).
             return Activations.Sigmoid.f(z)*(1-Activations.Sigmoid.f(z))
 
+
 class Loss(object):
     def cross_entropy(outputs, targets):
         """
@@ -79,7 +80,7 @@ class Metrics(object):
         self.test_acc = []
 
 
-class Model:
+class Model(object):
     def __init__(self):
         self.layers = []
         self.metrics = Metrics()
@@ -116,16 +117,16 @@ class Model:
 
         # Calculate loss.
         cross_entropy_loss = Loss.cross_entropy(outputs, Y)
-        self.metrics.val_loss.append(cross_entropy_loss)
 
         # Calculate accuracy.
         predictions = outputs.argmax(axis=1)
         targets = Y.argmax(axis=1)
-        accuracy = (predictions == targets).mean()
-        self.metrics.val_acc.append(accuracy)
+        acc = (predictions == targets).mean()
+
+        return cross_entropy_loss, acc
 
 
-    def train(self, X, Y, epochs, batch_size, lr):
+    def train(self, X, Y, epochs, batch_size, lr, evaluate=False):
         batches = X_train.shape[0] // batch_size
 
         for t in range(epochs):
@@ -152,7 +153,27 @@ class Model:
                         update = (lr/batch_size) * layer_gradients
                         layer.weights = layer.weights - update
 
-                self.evaluate(X_val, Y_val)
+                # Evaluate the model according to given metrics.
+                if evaluate and i % (batches // 10) == 0:
+                    train_loss, train_acc = self.evaluate(X_train, Y_train)
+                    self.metrics.train_loss.append(train_loss)
+                    self.metrics.train_acc.append(train_acc)
+
+                    val_loss, val_acc = self.evaluate(X_val, Y_val)
+                    self.metrics.val_loss.append(val_loss)
+                    self.metrics.val_acc.append(val_acc)
+
+                    test_loss, test_acc = self.evaluate(X_test, Y_test)
+                    self.metrics.test_loss.append(test_loss)
+                    self.metrics.test_acc.append(test_acc)
+
+            # Debug after each epoch.
+            print('Train loss:', self.metrics.train_loss[-1])
+            print('Train acc:', self.metrics.train_acc[-1])
+            print('Val loss:', self.metrics.val_loss[-1])
+            print('Val acc:', self.metrics.val_acc[-1])
+            print('Test loss:', self.metrics.test_loss[-1])
+            print('Test acc:', self.metrics.test_acc[-1])
 
 
     def backprop(self, x, t):
@@ -205,7 +226,7 @@ class Model:
         return gradients
 
 
-class Layer:
+class Layer(object):
     def __init__(self, neurons, activation, input_size):
         self.neurons = neurons
         self.activation = activation
@@ -409,7 +430,8 @@ def main():
     model = Model()
     model.add_layer(64, Activations.Sigmoid, 785)
     model.add_layer(10, Activations.Softmax)
-    model.train(X_train, Y_train, epochs=15, batch_size=128, lr=0.5)
+    model.train(X_train, Y_train, epochs=15,
+                batch_size=128, lr=0.5, evaluate=True)
     exit()
 
 
