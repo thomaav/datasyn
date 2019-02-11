@@ -5,46 +5,52 @@ import tqdm
 import os
 
 
-def shuffle(X, Y):
-    # This is probably easier with zipping and unzipping.
-    rng = np.random.get_state()
-    np.random.shuffle(X)
-    np.random.set_state(rng)
-    np.random.shuffle(Y)
+class Dataset(object):
+    def __init__(self):
+        pass
 
 
-def train_val_split(X, Y, val_percentage):
-    """
-      Selects samples from the dataset randomly to be in the
-      validation set. Also, shuffles the train set.
-      --
-      X: [N, num_features] numpy vector,
-      Y: [N, 1] numpy vector
-      val_percentage: amount of data to put in validation set
-    """
-    dataset_size = X.shape[0]
-    idx = np.arange(0, dataset_size)
-    np.random.shuffle(idx)
-
-    train_size = int(dataset_size * (1 - val_percentage))
-    idx_train = idx[:train_size]
-    idx_val = idx[train_size:]
-    X_train, Y_train = X[idx_train], Y[idx_train]
-    X_val, Y_val = X[idx_val], Y[idx_val]
-    return X_train, Y_train, X_val, Y_val
+    @staticmethod
+    def shuffle(X, Y):
+        # This is probably easier with zipping and unzipping.
+        rng = np.random.get_state()
+        np.random.shuffle(X)
+        np.random.set_state(rng)
+        np.random.shuffle(Y)
 
 
-def onehot_encode(Y, n_classes=10):
-    onehot = np.zeros((Y.shape[0], n_classes))
-    onehot[np.arange(0, Y.shape[0]), Y] = 1
-    return onehot
+    def train_val_split(self, X, Y, val_percentage):
+        """
+        Selects samples from the dataset randomly to be in the
+        validation set. Also, shuffles the train set.
+        --
+        X: [N, num_features] numpy vector,
+        Y: [N, 1] numpy vector
+        val_percentage: amount of data to put in validation set
+        """
+        dataset_size = X.shape[0]
+        idx = np.arange(0, dataset_size)
+        np.random.shuffle(idx)
+
+        train_size = int(dataset_size * (1 - val_percentage))
+        idx_train = idx[:train_size]
+        idx_val = idx[train_size:]
+        X_train, Y_train = X[idx_train], Y[idx_train]
+        X_val, Y_val = X[idx_val], Y[idx_val]
+        return X_train, Y_train, X_val, Y_val
 
 
-def bias_trick(X):
-    return np.concatenate((X, np.ones((len(X), 1))), axis=1)
+    def onehot_encode(self, Y, n_classes=10):
+        onehot = np.zeros((Y.shape[0], n_classes))
+        onehot[np.arange(0, Y.shape[0]), Y] = 1
+        return onehot
 
 
-class MNIST(object):
+    def bias_trick(self, X):
+        return np.concatenate((X, np.ones((len(X), 1))), axis=1)
+
+
+class MNIST(Dataset):
     # For passing MNIST around nicely.
     def __init__(self):
         if not os.path.isdir(mnist.SAVE_PATH):
@@ -57,10 +63,10 @@ class MNIST(object):
         # one-hot encoding the target values, and splitting the training
         # set to include a validation set.
         X_train, X_test = X_train / 127.5 - 1, X_test / 127.5 - 1
-        X_train = bias_trick(X_train)
-        X_test = bias_trick(X_test)
-        Y_train, Y_test = onehot_encode(Y_train), onehot_encode(Y_test)
-        X_train, Y_train, X_val, Y_val = train_val_split(X_train, Y_train, 0.1)
+        X_train = self.bias_trick(X_train)
+        X_test = self.bias_trick(X_test)
+        Y_train, Y_test = self.onehot_encode(Y_train), self.onehot_encode(Y_test)
+        X_train, Y_train, X_val, Y_val = self.train_val_split(X_train, Y_train, 0.1)
 
         self.X_train, self.Y_train = X_train, Y_train
         self.X_val, self.Y_val = X_val, Y_val
@@ -245,7 +251,7 @@ class Model(object):
 
         for t in range(epochs):
             # Shuffle training data here.
-            shuffle(X, Y)
+            Dataset.shuffle(X, Y)
 
             # SGD over the training set. For each training example,
             # perform the backpropagation algorithm and update the
@@ -377,10 +383,9 @@ def main():
 
     # Train model on dataset.
     model = Model()
-    model.add_layer(64, Activations.tanh, 785)
+    model.add_layer(64, Activations.tanh, mnist.X_train.shape[1])
     model.add_layer(10, Activations.softmax)
-    model.train(mnist, epochs=5,
-                batch_size=128, lr=0.5, evaluate=True)
+    model.train(mnist, epochs=5, batch_size=128, lr=0.5, evaluate=True)
     # model.plot_metrics()
 
 
