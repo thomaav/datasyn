@@ -18,7 +18,7 @@ class Activations(object):
             zs. This is done to avoid having to pass overloaded
             functions as attributes to layers.
             """
-            if not w:
+            if w is None:
                 a_exp = np.exp(X)
                 return a_exp / a_exp.sum()
             else:
@@ -39,7 +39,7 @@ class Activations(object):
             zs. This is done to avoid having to pass overloaded
             functions as attributes to layers.
             """
-            if not w:
+            if w is None:
                 return 1.0/(1.0 + np.exp(-X))
             else:
                 z = X.dot(w.T)
@@ -53,10 +53,36 @@ class Activations(object):
             # perhaps).
             return Activations.Sigmoid.f(z)*(1-Activations.Sigmoid.f(z))
 
+class Loss(object):
+    def cross_entropy(outputs, targets):
+        """
+        Calculates the cross entropy loss between a set of given
+        outputs from a model, and the corresponding target values.
+        """
+        log_y = np.log(outputs)
+        cross_entropy = -(targets * log_y)
+        return cross_entropy.mean()
+
+
+class Metrics(object):
+    """
+    Wrapper for several metrics that may be useful for evaluating the
+    performance of a network.
+    """
+    def __init__(self):
+        self.train_loss = []
+        self.val_loss = []
+        self.test_loss = []
+
+        self.train_acc = []
+        self.val_acc = []
+        self.test_acc = []
+
 
 class Model:
     def __init__(self):
         self.layers = []
+        self.metrics = Metrics()
 
 
     def add_layer(self, neurons, activation, input_size=0):
@@ -71,7 +97,7 @@ class Model:
             self.layers.append(Layer(neurons, activation, self.layers[-1].neurons))
 
 
-    def evaluate(self, X):
+    def forward(self, X):
         if len(X.shape) == 1:
             X = np.array([X])
 
@@ -79,6 +105,24 @@ class Model:
             X = layer.evaluate(X)
 
         return X
+
+
+    def evaluate(self, X, Y):
+        """
+        Evaluates a the performance of the model on a set of inputs X
+        and targets Y.
+        """
+        outputs = self.forward(X)
+
+        # Calculate loss.
+        cross_entropy_loss = Loss.cross_entropy(outputs, Y)
+        self.metrics.val_loss.append(cross_entropy_loss)
+
+        # Calculate accuracy.
+        predictions = outputs.argmax(axis=1)
+        targets = Y.argmax(axis=1)
+        accuracy = (predictions == targets).mean()
+        self.metrics.val_acc.append(accuracy)
 
 
     def train(self, X, Y, epochs, batch_size, lr):
@@ -107,6 +151,8 @@ class Model:
                         layer_gradients = gradients[j]
                         update = (lr/batch_size) * layer_gradients
                         layer.weights = layer.weights - update
+
+                self.evaluate(X_val, Y_val)
 
 
     def backprop(self, x, t):
@@ -363,7 +409,7 @@ def main():
     model = Model()
     model.add_layer(64, Activations.Sigmoid, 785)
     model.add_layer(10, Activations.Softmax)
-    model.train(X_train, Y_train, 15, 128, 0.5)
+    model.train(X_train, Y_train, epochs=15, batch_size=128, lr=0.5)
     exit()
 
 
