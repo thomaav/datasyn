@@ -236,22 +236,18 @@ class Model(object):
         plt.clf()
 
 
-    def train(self, dataset, epochs, batch_size, lr, evaluate=False,
-              val_set=None, test_set=None):
+    def train(self, dataset, epochs, batch_size, lr, evaluate=False, momentum=0.0):
         X, Y = dataset.X_train, dataset.Y_train
         batches = X.shape[0] // batch_size
-
-        # There is currently no error handling for when no
-        # validation/test sets are supplied -- but we don't care for
-        # now.
-        if val_set:
-            X_val, Y_val = val_set
-        if test_set:
-            X_train, Y_train = val_set
 
         for t in range(epochs):
             # Shuffle training data here.
             Dataset.shuffle(X, Y)
+
+            # If we are using momentum, initialize weighted average
+            # sum of previous gradients.
+            weighted_avg_gradients = \
+                [np.zeros((l.neurons, l.input_size)) for l in self.layers]
 
             # SGD over the training set. For each training example,
             # perform the backpropagation algorithm and update the
@@ -271,6 +267,9 @@ class Model(object):
                     for j, layer in enumerate(self.layers):
                         layer_gradients = gradients[j]
                         update = (lr/batch_size) * layer_gradients
+                        if momentum:
+                            update = update + (momentum/batch_size)*weighted_avg_gradients[j]
+                            weighted_avg_gradients[j] = update
                         layer.weights = layer.weights - update
 
                 # Evaluate the model according to given metrics.
@@ -385,7 +384,8 @@ def main():
     model = Model()
     model.add_layer(64, Activations.tanh, mnist.X_train.shape[1])
     model.add_layer(10, Activations.softmax)
-    model.train(mnist, epochs=5, batch_size=128, lr=0.5, evaluate=True)
+    model.train(mnist, epochs=5, batch_size=128, lr=0.5,
+                evaluate=True, momentum=0.9)
     # model.plot_metrics()
 
 
