@@ -377,10 +377,10 @@ class Layer(object):
 
 
 def main():
-    # Load dataset.
+    # Load MNIST.
     mnist = MNIST()
 
-    # Train model on dataset.
+    # Train model on dataset (MNIST in this case).
     model = Model()
     model.add_layer(64, Activations.tanh, mnist.X_train.shape[1])
     model.add_layer(10, Activations.softmax)
