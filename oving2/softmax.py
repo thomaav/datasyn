@@ -126,7 +126,39 @@ class Model(object):
         targets = Y.argmax(axis=1)
         acc = (predictions == targets).mean()
 
-        return cross_entropy_loss, acc
+        return cross_entropy_loss, acc*100
+
+
+    def plot_metrics(self):
+        """
+        Plots all available metrics in a standard manner. Only metrics
+        that have available data are considered.
+        """
+        # Plot loss data.
+        plt.figure(figsize=(12, 8))
+        plt.ylim([0, 0.6])
+        if self.metrics.train_loss:
+            plt.plot(self.metrics.train_loss, label='Training loss')
+        if self.metrics.val_loss:
+            plt.plot(self.metrics.val_loss, label='Validation loss')
+        if self.metrics.test_loss:
+            plt.plot(self.metrics.test_loss, label='Test loss')
+        plt.legend()
+        plt.show()
+        plt.clf()
+
+        # Plot accuracy data.
+        plt.figure(figsize=(12, 8))
+        plt.ylim([0, 100])
+        if self.metrics.train_acc:
+            plt.plot(self.metrics.train_acc, label='Training accuracy')
+        if self.metrics.val_acc:
+            plt.plot(self.metrics.val_acc, label='Validation accuracy')
+        if self.metrics.test_acc:
+            plt.plot(self.metrics.test_acc, label='Test accuracy')
+        plt.legend()
+        plt.show()
+        plt.clf()
 
 
     def train(self, X, Y, epochs, batch_size, lr, evaluate=False):
@@ -157,7 +189,7 @@ class Model(object):
                         layer.weights = layer.weights - update
 
                 # Evaluate the model according to given metrics.
-                if evaluate and i % (batches // 10) == 0:
+                if evaluate and i % (batches // 20) == 0:
                     train_loss, train_acc = self.evaluate(X_train, Y_train)
                     self.metrics.train_loss.append(train_loss)
                     self.metrics.train_acc.append(train_acc)
@@ -169,14 +201,6 @@ class Model(object):
                     test_loss, test_acc = self.evaluate(X_test, Y_test)
                     self.metrics.test_loss.append(test_loss)
                     self.metrics.test_acc.append(test_acc)
-
-            # Debug after each epoch.
-            print('Train loss:', self.metrics.train_loss[-1])
-            print('Train acc:', self.metrics.train_acc[-1])
-            print('Val loss:', self.metrics.val_loss[-1])
-            print('Val acc:', self.metrics.val_acc[-1])
-            print('Test loss:', self.metrics.test_loss[-1])
-            print('Test acc:', self.metrics.test_acc[-1])
 
 
     def backprop(self, x, t):
@@ -227,6 +251,20 @@ class Model(object):
             d = derivative * np.dot(next_layer.weights.T, d)
             gradients.insert(0, np.dot(d, activations[i-1].T))
         return gradients
+
+
+    def save():
+        """
+        Serialize and save the weights of the network.
+        """
+        pass
+
+
+    def load():
+        """
+        Deserialize and load already trained weights into the network.
+        """
+        pass
 
 
 class Layer(object):
@@ -307,8 +345,9 @@ def main():
     model = Model()
     model.add_layer(64, Activations.Sigmoid, 785)
     model.add_layer(10, Activations.Softmax)
-    model.train(X_train, Y_train, epochs=15,
+    model.train(X_train, Y_train, epochs=5,
                 batch_size=128, lr=0.5, evaluate=True)
+    model.plot_metrics()
     exit()
 
 
