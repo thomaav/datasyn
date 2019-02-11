@@ -13,6 +13,60 @@ def shuffle(X, Y):
     np.random.shuffle(Y)
 
 
+def train_val_split(X, Y, val_percentage):
+    """
+      Selects samples from the dataset randomly to be in the
+      validation set. Also, shuffles the train set.
+      --
+      X: [N, num_features] numpy vector,
+      Y: [N, 1] numpy vector
+      val_percentage: amount of data to put in validation set
+    """
+    dataset_size = X.shape[0]
+    idx = np.arange(0, dataset_size)
+    np.random.shuffle(idx)
+
+    train_size = int(dataset_size * (1 - val_percentage))
+    idx_train = idx[:train_size]
+    idx_val = idx[train_size:]
+    X_train, Y_train = X[idx_train], Y[idx_train]
+    X_val, Y_val = X[idx_val], Y[idx_val]
+    return X_train, Y_train, X_val, Y_val
+
+
+def onehot_encode(Y, n_classes=10):
+    onehot = np.zeros((Y.shape[0], n_classes))
+    onehot[np.arange(0, Y.shape[0]), Y] = 1
+    return onehot
+
+
+def bias_trick(X):
+    return np.concatenate((X, np.ones((len(X), 1))), axis=1)
+
+
+class MNIST(object):
+    # For passing MNIST around nicely.
+    def __init__(self):
+        if not os.path.isdir(mnist.SAVE_PATH):
+            mnist.init()
+
+        # Load the data set -- in this case MNIST.
+        X_train, Y_train, X_test, Y_test = mnist.load()
+
+        # Pre-process data by adding 1 to the input set for bias trick,
+        # one-hot encoding the target values, and splitting the training
+        # set to include a validation set.
+        X_train, X_test = X_train / 127.5 - 1, X_test / 127.5 - 1
+        X_train = bias_trick(X_train)
+        X_test = bias_trick(X_test)
+        Y_train, Y_test = onehot_encode(Y_train), onehot_encode(Y_test)
+        X_train, Y_train, X_val, Y_val = train_val_split(X_train, Y_train, 0.1)
+
+        self.X_train, self.Y_train = X_train, Y_train
+        self.X_val, self.Y_val = X_val, Y_val
+        self.X_test, self.Y_test = X_test, Y_test
+
+
 class Activations(object):
     """
     These are really just namespaces to keep track of stuff, as we
@@ -34,6 +88,7 @@ class Activations(object):
                 a = X.dot(w.T)
                 a_exp = np.exp(a)
                 return a_exp / a_exp.sum(axis=1, keepdims=True)
+
 
         @classmethod
         def df(cls, z):
@@ -175,12 +230,22 @@ class Model(object):
         plt.clf()
 
 
-    def train(self, X, Y, epochs, batch_size, lr, evaluate=False):
-        batches = X_train.shape[0] // batch_size
+    def train(self, dataset, epochs, batch_size, lr, evaluate=False,
+              val_set=None, test_set=None):
+        X, Y = dataset.X_train, dataset.Y_train
+        batches = X.shape[0] // batch_size
+
+        # There is currently no error handling for when no
+        # validation/test sets are supplied -- but we don't care for
+        # now.
+        if val_set:
+            X_val, Y_val = val_set
+        if test_set:
+            X_train, Y_train = val_set
 
         for t in range(epochs):
             # Shuffle training data here.
-            shuffle(X_train, Y_train)
+            shuffle(X, Y)
 
             # SGD over the training set. For each training example,
             # perform the backpropagation algorithm and update the
@@ -204,15 +269,15 @@ class Model(object):
 
                 # Evaluate the model according to given metrics.
                 if evaluate and i % (batches // 20) == 0:
-                    # train_loss, train_acc = self.evaluate(X_train, Y_train)
+                    # train_loss, train_acc = self.evaluate(dataset.X_train, dataset.Y_train)
                     # self.metrics.train_loss.append(train_loss)
                     # self.metrics.train_acc.append(train_acc)
 
-                    val_loss, val_acc = self.evaluate(X_val, Y_val)
+                    val_loss, val_acc = self.evaluate(dataset.X_val, dataset.Y_val)
                     self.metrics.val_loss.append(val_loss)
                     self.metrics.val_acc.append(val_acc)
 
-                    # test_loss, test_acc = self.evaluate(X_test, Y_test)
+                    # test_loss, test_acc = self.evaluate(dataset.X_test, dataset.Y_test)
                     # self.metrics.test_loss.append(test_loss)
                     # self.metrics.test_acc.append(test_acc)
 
@@ -306,65 +371,15 @@ class Layer(object):
         return self.activation.f(X, self.weights)
 
 
-def train_val_split(X, Y, val_percentage):
-    """
-      Selects samples from the dataset randomly to be in the validation set. Also, shuffles the train set.
-      --
-      X: [N, num_features] numpy vector,
-      Y: [N, 1] numpy vector
-      val_percentage: amount of data to put in validation set
-    """
-    dataset_size = X.shape[0]
-    idx = np.arange(0, dataset_size)
-    np.random.shuffle(idx)
-
-    train_size = int(dataset_size * (1 - val_percentage))
-    idx_train = idx[:train_size]
-    idx_val = idx[train_size:]
-    X_train, Y_train = X[idx_train], Y[idx_train]
-    X_val, Y_val = X[idx_val], Y[idx_val]
-    return X_train, Y_train, X_val, Y_val
-
-
-def onehot_encode(Y, n_classes=10):
-    onehot = np.zeros((Y.shape[0], n_classes))
-    onehot[np.arange(0, Y.shape[0]), Y] = 1
-    return onehot
-
-
-def bias_trick(X):
-    return np.concatenate((X, np.ones((len(X), 1))), axis=1)
-
-
-# Global ftw
-if not os.path.isdir(mnist.SAVE_PATH):
-    mnist.init()
-
-X_train, Y_train, X_test, Y_test = mnist.load()
-
-# Pre-process data
-# b) normalize [-1, 1]
-X_train, X_test = X_train / 127.5 - 1, X_test / 127.5 - 1
-X_train = bias_trick(X_train)
-X_test = bias_trick(X_test)
-Y_train, Y_test = onehot_encode(Y_train), onehot_encode(Y_test)
-
-X_train, Y_train, X_val, Y_val = train_val_split(X_train, Y_train, 0.1)
-
-# Hyperparameters
-batch_size = 64
-learning_rate = 0.5
-num_batches = X_train.shape[0] // batch_size
-should_gradient_check = False
-check_step = num_batches // 10
-max_epochs = 20
-
-
 def main():
+    # Load dataset.
+    mnist = MNIST()
+
+    # Train model on dataset.
     model = Model()
     model.add_layer(64, Activations.tanh, 785)
     model.add_layer(10, Activations.softmax)
-    model.train(X_train, Y_train, epochs=5,
+    model.train(mnist, epochs=5,
                 batch_size=128, lr=0.5, evaluate=True)
     # model.plot_metrics()
 
