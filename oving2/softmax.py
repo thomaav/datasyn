@@ -5,6 +5,14 @@ import tqdm
 import os
 
 
+def shuffle(X, Y):
+    # This is probably easier with zipping and unzipping.
+    rng = np.random.get_state()
+    np.random.shuffle(X)
+    np.random.set_state(rng)
+    np.random.shuffle(Y)
+
+
 class Activations(object):
     """
     These are really just namespaces to keep track of stuff, as we
@@ -166,7 +174,7 @@ class Model(object):
 
         for t in range(epochs):
             # Shuffle training data here.
-            0 ^ 0
+            shuffle(X_train, Y_train)
 
             # SGD over the training set. For each training example,
             # perform the backpropagation algorithm and update the
