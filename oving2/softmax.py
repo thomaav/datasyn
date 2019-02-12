@@ -218,6 +218,10 @@ class Model(object):
 
 
     def forward(self, X):
+        """
+        Forward input X throughout the entire network, producing the
+        output of the final layer.
+        """
         if len(X.shape) == 1:
             X = np.array([X])
 
@@ -284,7 +288,7 @@ class Model(object):
 
         for t in range(epochs):
             # Shuffle training data here.
-            Dataset.shuffle(X, Y)
+            # Dataset.shuffle(X, Y)
 
             # If we are using momentum, initialize weighted average
             # sum of previous gradients.
@@ -303,14 +307,14 @@ class Model(object):
                 for x, y in zip(X_batch, Y_batch):
                     x = np.expand_dims(x, axis=1)
                     y = np.expand_dims(y, axis=1)
-                    gradients = self.backprop(x, y)
+                    gradients = self.bp(x, y)
 
                     # Update weights according to gradients.
                     for j, layer in enumerate(self.layers):
                         layer_gradients = gradients[j]
                         update = (lr/batch_size) * layer_gradients
                         if momentum and type(layer) != Dropout:
-                            update = update + (momentum/batch_size)*weighted_avg_gradients[j]
+                            update = update + momentum*weighted_avg_gradients[j]
                             weighted_avg_gradients[j] = update
                         layer.weights = layer.weights - update
 
@@ -336,7 +340,7 @@ class Model(object):
             print('Test acc:', self.metrics.test_acc[-1])
 
 
-    def backprop(self, x, t):
+    def bp(self, x, t):
         """
         The backpropagation algorithm consists of (in order):
 
@@ -348,7 +352,7 @@ class Model(object):
         * Backpropagate the error layer by layer by d_j =
           f'(z_j)*sum(w_kj*d_k), where we are computing the error of
           layer j by the means of the next layer k.
-
+a
         * The output is the gradient of the cost function for each
           layer. For each individual weight this is given by the
           activation of the previous layer multiplied by the error of
@@ -383,10 +387,15 @@ class Model(object):
 
             # This assumes no abuse of layer building within
             # models. This is obviously not very sturdy or general,
-            # but should work for our small use case.
+            # but should work for our small use case. This is quick
+            # and dirty, and not very well thought out.
             if type(layer) == Dropout:
                 gradients.insert(0, np.array([]))
             elif type(next_layer) == Dropout:
+                # We are really just doing the same as normal, except
+                # that we are using the layer that is after the
+                # dropout as next_layer, and masking the errors with
+                # the dropout mask.
                 derivative = layer.activation.df(zs[i])
                 masked_ds = d * next_layer.mask
                 delta_sum = np.dot(self.layers[i+2].weights.T, d)
@@ -405,14 +414,14 @@ class Model(object):
         """
         Serialize and save the weights of the network.
         """
-        pass
+        raise NotImplementedError
 
 
     def load():
         """
         Deserialize and load already trained weights into the network.
         """
-        pass
+        raise NotImplementedError
 
 
 class Layer(object):
@@ -421,24 +430,37 @@ class Layer(object):
         self.activation = activation
         self.input_size = input_size
 
-        # Initalize weights from a normal distribution with mean 0 and
-        # std 1/sqrt(fan-in). The fan-in of a neuron is the number of
-        # inputs it has.
+        # Weight initialization can be done in different ways, as
+        # shown below. These could also have been factored into an
+        # Initializers class, like in Keras.
 
-        # Uniform distribution.
+        # Using uniform distribution.
         # self.weights = np.random.uniform(-1, 1, (self.neurons, self.input_size))
 
         # Using fan-in.
-        sigma = 1 / np.sqrt(input_size)
+        # sigma = 1 / np.sqrt(input_size)
+        # self.weights = np.random.normal(loc=0, scale=sigma,
+        #                                 size=(self.neurons, self.input_size))
+
+        # Using Xavier normal initialization.
+        sigma = np.sqrt(2 / (self.input_size + self.neurons))
         self.weights = np.random.normal(loc=0, scale=sigma,
                                         size=(self.neurons, self.input_size))
 
 
     def z(self, X):
+        """
+        Produces the Z that would be input to the activation of the
+        layer. Used during backpropagation.
+        """
         return np.dot(self.weights, X)
 
 
     def evaluate_z(self, z):
+        """
+        Evaluates a layer, given that its Z has already been
+        computed. Used during backpropagation.
+        """
         return self.activation.f(z)
 
 
@@ -474,44 +496,19 @@ class Dropout(Layer):
 
 
 def main():
-    # Load MNIST.
+    """
+    Simple example for the usage of the Model class.
+    """
     mnist = MNIST()
-
-    # Train model on dataset (MNIST in this case).
-    # model = Model()
-    # model.add_dropout(0.25, mnist.X_train.shape[1])
-    # model.add_layer(64, Activations.relu)
-    # model.add_dropout(0.25)
-    # model.add_layer(64, Activations.relu)
-    # model.add_dropout(0.20)
-    # model.add_layer(10, Activations.softmax)
-    # model.train(mnist, epochs=100, batch_size=128, lr=0.5,
-    #             evaluate=True)
-    # model.plot_metrics()
-
-    # Pretty good this one.
     model = Model()
-    model.add_dropout(0.40, mnist.X_train.shape[1])
-    model.add_layer(384, Activations.relu)
-    model.add_dropout(0.25)
+    model.add_dropout(0.25, input_size=mnist.X_train.shape[1])
+    model.add_layer(64, Activations.relu)
+    model.add_dropout(0.20)
+    model.add_layer(64, Activations.relu)
+    model.add_dropout(0.20)
     model.add_layer(10, Activations.softmax)
-    model.train(mnist, epochs=100, batch_size=128, lr=0.5,
-                evaluate=True, decay=0.01)
-
-    # model = Model()
-    # model.add_layer(60, Activations.tanh, mnist.X_train.shape[1])
-    # model.add_layer(60, Activations.tanh)
-    # model.add_layer(10, Activations.softmax)
-    # model.train(mnist, epochs=15, batch_size=128, lr=0.5,
-    #             evaluate=True)
-
-    # model = Model()
-    # model.add_dropout(0.4, mnist.X_train.shape[1])
-    # model.add_layer(64, Activations.relu)
-    # model.add_dropout(0.25)
-    # model.add_layer(10, Activations.softmax)
-    # model.train(mnist, epochs=15, batch_size=128, lr=0.5,
-    #             evaluate=True, decay=0.03)
+    model.train(mnist, epochs=100, batch_size=128, lr=0.5, evaluate=True, decay=0.01)
+    model.plot_metrics()
 
 
 if __name__ == '__main__':
