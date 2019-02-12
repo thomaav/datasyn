@@ -276,9 +276,10 @@ class Model(object):
         plt.clf()
 
 
-    def train(self, dataset, epochs, batch_size, lr, evaluate=False, momentum=0.0):
+    def train(self, dataset, epochs, batch_size, lr, evaluate=False, momentum=0.0, decay=0.0):
         X, Y = dataset.X_train, dataset.Y_train
         batches = X.shape[0] // batch_size
+        lr0 = lr
 
         for t in range(epochs):
             # Shuffle training data here.
@@ -313,20 +314,25 @@ class Model(object):
                         layer.weights = layer.weights - update
 
                 # Evaluate the model according to given metrics.
-                if evaluate and i % (batches // 20) == 0:
-                    # train_loss, train_acc = self.evaluate(dataset.X_train, dataset.Y_train)
-                    # self.metrics.train_loss.append(train_loss)
-                    # self.metrics.train_acc.append(train_acc)
+                if evaluate and i % (batches // 2) == 0:
+                    train_loss, train_acc = self.evaluate(dataset.X_train, dataset.Y_train)
+                    self.metrics.train_loss.append(train_loss)
+                    self.metrics.train_acc.append(train_acc)
 
                     val_loss, val_acc = self.evaluate(dataset.X_val, dataset.Y_val)
                     self.metrics.val_loss.append(val_loss)
                     self.metrics.val_acc.append(val_acc)
 
-                    # test_loss, test_acc = self.evaluate(dataset.X_test, dataset.Y_test)
-                    # self.metrics.test_loss.append(test_loss)
-                    # self.metrics.test_acc.append(test_acc)
+                    test_loss, test_acc = self.evaluate(dataset.X_test, dataset.Y_test)
+                    self.metrics.test_loss.append(test_loss)
+                    self.metrics.test_acc.append(test_acc)
 
+            # Anneal learning rate (exponential decay).
+            lr = lr0 * np.exp(-decay*t)
+
+            print('Train acc:', self.metrics.train_acc[-1])
             print('Val acc:', self.metrics.val_acc[-1])
+            print('Test acc:', self.metrics.test_acc[-1])
 
 
     def backprop(self, x, t):
@@ -471,16 +477,40 @@ def main():
     mnist = MNIST()
 
     # Train model on dataset (MNIST in this case).
-    model = Model()
-    model.add_dropout(0.25, mnist.X_train.shape[1])
-    model.add_layer(64, Activations.relu)
-    model.add_dropout(0.25)
-    model.add_layer(64, Activations.relu)
-    model.add_dropout(0.20)
-    model.add_layer(10, Activations.softmax)
-    model.train(mnist, epochs=100, batch_size=128, lr=0.3,
-                evaluate=True)
+    # model = Model()
+    # model.add_dropout(0.25, mnist.X_train.shape[1])
+    # model.add_layer(64, Activations.relu)
+    # model.add_dropout(0.25)
+    # model.add_layer(64, Activations.relu)
+    # model.add_dropout(0.20)
+    # model.add_layer(10, Activations.softmax)
+    # model.train(mnist, epochs=100, batch_size=128, lr=0.5,
+    #             evaluate=True)
     # model.plot_metrics()
+
+    # Pretty good this one.
+    model = Model()
+    model.add_dropout(0.15, mnist.X_train.shape[1])
+    model.add_layer(128, Activations.relu)
+    model.add_dropout(0.15)
+    model.add_layer(10, Activations.softmax)
+    model.train(mnist, epochs=100, batch_size=128, lr=0.5,
+                evaluate=True, decay=0.005)
+
+    # model = Model()
+    # model.add_layer(60, Activations.tanh, mnist.X_train.shape[1])
+    # model.add_layer(60, Activations.tanh)
+    # model.add_layer(10, Activations.softmax)
+    # model.train(mnist, epochs=15, batch_size=128, lr=0.5,
+    #             evaluate=True)
+
+    # model = Model()
+    # model.add_dropout(0.4, mnist.X_train.shape[1])
+    # model.add_layer(64, Activations.relu)
+    # model.add_dropout(0.25)
+    # model.add_layer(10, Activations.softmax)
+    # model.train(mnist, epochs=15, batch_size=128, lr=0.5,
+    #             evaluate=True, decay=0.03)
 
 
 if __name__ == '__main__':
