@@ -135,12 +135,6 @@ class Activations(object):
     class relu(object):
         @staticmethod
         def f(X, w=None):
-            """
-            This will modify the input values by use of fancy
-            indexing. This will cause bugs if you are not
-            careful. It's fine for now, as we know all usages of
-            Activation.$a.f.
-            """
             if w is None:
                 Xc = np.array(X)
                 Xc[Xc<0] = 0
@@ -154,14 +148,20 @@ class Activations(object):
 
         @classmethod
         def df(cls, z):
-            """
-            Here we should definitely not change the input, as we are
-            using already computed zs during backpropagation.
-            """
             zc = np.array(z)
             zc[zc<0] = 0
             zc[zc>0] = 1
             return zc
+
+
+    class dropout(object):
+        @staticmethod
+        def f(z):
+            raise NotImplementedError
+
+        @classmethod
+        def df(cls, z):
+            return z
 
 
 class Loss(object):
@@ -206,6 +206,14 @@ class Model(object):
             self.layers.append(Layer(neurons, activation, self.input_size))
         else:
             self.layers.append(Layer(neurons, activation, self.layers[-1].neurons))
+
+
+    def add_dropout(self, rate, input_size=0):
+        if not self.layers:
+            self.input_size = input_size
+            self.layers.append(Dropout(rate, self.input_size))
+        else:
+            self.layers.append(Dropout(rate, self.layers[-1].neurons))
 
 
     def forward(self, X):
@@ -350,9 +358,9 @@ class Model(object):
 
         # Compute activations for each layer.
         for i, layer in enumerate(self.layers):
-            z = np.dot(layer.weights, activations[i])
+            z = layer.z(activations[i])
             zs.append(z)
-            activations.append(layer.activation.f(z))
+            activations.append(layer.evaluate_z(z))
 
         # Calculate the first error (delta) for the output layer, as
         # this is the only one that uses the actual cost derivative,
@@ -365,9 +373,24 @@ class Model(object):
         for i in range(-2, -(len(self.layers)+1), -1):
             layer = self.layers[i]
             next_layer = self.layers[i+1]
-            derivative = layer.activation.df(zs[i])
-            d = derivative * np.dot(next_layer.weights.T, d)
-            gradients.insert(0, np.dot(d, activations[i-1].T))
+
+            # This assumes no abuse of layer building within
+            # models. This is obviously not very sturdy or general,
+            # but should work for our small use case.
+            if type(layer) == Dropout:
+                gradients.insert(0, np.array([]))
+            elif type(next_layer) == Dropout:
+                derivative = layer.activation.df(zs[i])
+                masked_ds = d * next_layer.mask
+                delta_sum = np.dot(self.layers[i+2].weights.T, d)
+                d = derivative * np.multiply(delta_sum, next_layer.mask[:, None])
+                gradients.insert(0, np.dot(d, activations[i-1].T))
+                next_layer.remask()
+            else:
+                derivative = layer.activation.df(zs[i])
+                d = derivative * np.dot(next_layer.weights.T, d)
+                gradients.insert(0, np.dot(d, activations[i-1].T))
+
         return gradients
 
 
@@ -404,8 +427,43 @@ class Layer(object):
                                         size=(self.neurons, self.input_size))
 
 
+    def z(self, X):
+        return np.dot(self.weights, X)
+
+
+    def evaluate_z(self, z):
+        return self.activation.f(z)
+
+
     def evaluate(self, X):
         return self.activation.f(X, self.weights)
+
+
+class Dropout(Layer):
+    def __init__(self, rate, size):
+        self.rate = 1-rate
+        self.neurons = size
+        self.input_size = size
+        self.activation = Activations.dropout
+        self.mask = np.random.binomial(1, self.rate, size=self.input_size) / self.rate
+        self.weights = 1
+
+
+    def remask(self):
+        self.mask = np.random.binomial(1, self.rate, size=self.input_size) / self.rate
+
+
+    def z(self, X):
+        return X
+
+
+    def evaluate_z(self, z):
+        activations = z * self.mask[:, None]
+        return activations
+
+
+    def evaluate(self, X):
+        return X
 
 
 def main():
@@ -414,9 +472,13 @@ def main():
 
     # Train model on dataset (MNIST in this case).
     model = Model()
-    model.add_layer(128, Activations.relu, mnist.X_train.shape[1])
+    model.add_dropout(0.25, mnist.X_train.shape[1])
+    model.add_layer(64, Activations.relu)
+    model.add_dropout(0.25)
+    model.add_layer(64, Activations.relu)
+    model.add_dropout(0.20)
     model.add_layer(10, Activations.softmax)
-    model.train(mnist, epochs=15, batch_size=128, lr=0.5,
+    model.train(mnist, epochs=100, batch_size=128, lr=0.3,
                 evaluate=True)
     # model.plot_metrics()
 
