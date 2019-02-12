@@ -132,6 +132,38 @@ class Activations(object):
             return 1.14393 * (1 / np.cosh(2/3*z))**2
 
 
+    class relu(object):
+        @staticmethod
+        def f(X, w=None):
+            """
+            This will modify the input values by use of fancy
+            indexing. This will cause bugs if you are not
+            careful. It's fine for now, as we know all usages of
+            Activation.$a.f.
+            """
+            if w is None:
+                Xc = np.array(X)
+                Xc[Xc<0] = 0
+                return Xc
+            else:
+                z = X.dot(w.T)
+                zc = np.array(z)
+                zc[zc<0] = 0
+                return zc
+
+
+        @classmethod
+        def df(cls, z):
+            """
+            Here we should definitely not change the input, as we are
+            using already computed zs during backpropagation.
+            """
+            zc = np.array(z)
+            zc[zc<0] = 0
+            zc[zc>0] = 1
+            return zc
+
+
 class Loss(object):
     def cross_entropy(outputs, targets):
         """
@@ -382,10 +414,10 @@ def main():
 
     # Train model on dataset (MNIST in this case).
     model = Model()
-    model.add_layer(64, Activations.tanh, mnist.X_train.shape[1])
+    model.add_layer(128, Activations.relu, mnist.X_train.shape[1])
     model.add_layer(10, Activations.softmax)
-    model.train(mnist, epochs=5, batch_size=128, lr=0.5,
-                evaluate=True, momentum=0.9)
+    model.train(mnist, epochs=15, batch_size=128, lr=0.5,
+                evaluate=True)
     # model.plot_metrics()
 
 
