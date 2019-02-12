@@ -159,6 +159,7 @@ class Activations(object):
         def f(z):
             raise NotImplementedError
 
+
         @classmethod
         def df(cls, z):
             return z
@@ -308,7 +309,7 @@ class Model(object):
                     for j, layer in enumerate(self.layers):
                         layer_gradients = gradients[j]
                         update = (lr/batch_size) * layer_gradients
-                        if momentum:
+                        if momentum and type(layer) != Dropout:
                             update = update + (momentum/batch_size)*weighted_avg_gradients[j]
                             weighted_avg_gradients[j] = update
                         layer.weights = layer.weights - update
@@ -490,12 +491,12 @@ def main():
 
     # Pretty good this one.
     model = Model()
-    model.add_dropout(0.15, mnist.X_train.shape[1])
-    model.add_layer(128, Activations.relu)
-    model.add_dropout(0.15)
+    model.add_dropout(0.40, mnist.X_train.shape[1])
+    model.add_layer(384, Activations.relu)
+    model.add_dropout(0.25)
     model.add_layer(10, Activations.softmax)
     model.train(mnist, epochs=100, batch_size=128, lr=0.5,
-                evaluate=True, decay=0.005)
+                evaluate=True, decay=0.01)
 
     # model = Model()
     # model.add_layer(60, Activations.tanh, mnist.X_train.shape[1])
