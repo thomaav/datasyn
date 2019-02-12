@@ -1,0 +1,81 @@
+#+TITLE: TDT4265 - Computer Vision and Deep Learning Assignment 2
+#+AUTHOR: Thomas Aven, Lasse Eggen
+#+EXPORT_FILE_NAME: tdt4265_thomaav_lasseaeg
+#+LATEX_CLASS: lasse2
+#+LATEX_CLASS_OPTIONS: [abstract=off,oneside]
+#+OPTIONS: toc:nil
+#+OPTIONS: ^:nil
+#+OPTIONS: num:nil
+
+* 1 - Softmax regression with backpropagation
+** 1.1 - Mathematics
+Notice that the quadratic cost function is written without
+exponent. It should be:\\
+$C = \sum\limits_{k} \frac{1}{2}(a_k - t_k)^2$
+
+#+BEGIN_center
+# #+ATTR_LATEX: :center :width 1.0\textwidth
+[[file:mathhhhs-1.png]]
+[[file:mathhhhs-2.png]]
+#+END_center
+
+** 1.2 - Vectorize computation
+TODO
+
+* 2 - MNIST Classification
+** a) Description of training procedure
+TODO: learning rate to reflect live runs.
+#+BEGIN_SRC python
+model = Model()
+model.add_layer(64, Activations.sigmoid, size_of_input_layer)
+model.add_layer(10, Activations.softmax)
+model.train(mnist, epochs=15, batch_size=128, lr=0.5, evaluate=True)
+#+END_SRC
+
+We split MNIST into a training and validation set. 10% of the dataset
+is selected as validation set. Log-cross entropy is used. No
+regularization is implemented (yet, as we'll dropout for task
+5). Early stopping was not used, as we simply observed the training
+behaviour over several training sessions and decided that 15 epochs
+was sufficient.
+
+*** Hyperparameters
+The hyperparameters are given to the model when kicking off training,
+they are:
+#+BEGIN_SRC python
+model.train(mnist, epochs=5, batch_size=128, lr=0.5,
+            evaluate=True, momentum=0.9)
+#+END_SRC
+
+** b) Numerical approximation check of gradients
+TODO
+
+** c) Plot
+TODO
+
+
+* 3 - Adding the "Tricks of the Trade"
+TODO - comment on change of improvement.
+
+|                                     | Learning speed |
+|-------------------------------------+----------------|
+| Shuffle                             |                |
+| Improved sigmoid                    |                |
+| Initialize from normal distribution |                |
+| Momentum, $\mu = 0.9$               |                |
+
+
+* 4 - Experiment with network topology
+** a) Halving the number of hidden units
+
+** b) Doubling the number of hidden units
+
+** c) Increase number of hidden layers
+With one hidden layer the architecture has $764*64 + 10*64 = 49536$
+weights. To 
+
+
+# #+BEGIN_center
+# #+ATTR_LATEX: :center :width 1.0\textwidth
+# [[./linreglosses.png]]
+# #+END_center
