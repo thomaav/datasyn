@@ -324,7 +324,7 @@ class Model(object):
 
         for t in range(epochs):
             # Shuffle training data here.
-            # Dataset.shuffle(X, Y)
+            dataset.shuffle(X, Y)
 
             # If we are using momentum, initialize weighted average
             # sum of previous gradients.
