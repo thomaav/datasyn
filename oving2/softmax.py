@@ -171,9 +171,12 @@ class Loss(object):
         Calculates the cross entropy loss between a set of given
         outputs from a model, and the corresponding target values.
         """
+        if outputs.shape[0] == 1:
+            outputs = outputs.T
+
         log_y = np.log(outputs)
-        cross_entropy = -(targets * log_y)
-        return cross_entropy.mean()
+        ce = -targets * log_y
+        return ce.mean()
 
 
 class Metrics(object):
@@ -281,6 +284,39 @@ class Model(object):
         plt.clf()
 
 
+    def check_gradients(self, X, Y, epsilon):
+        """
+        X and Y should be a _single_ example to work well with how we
+        do backpropagation.
+        """
+        # We will be modifying the layer in place to do loss tests, so
+        # save the current weights for when we are done.
+        layer_weights = self.layers[-1].weights
+
+        # The gradients we would receive from backpropagation.
+        bp_gradients = self.bp(X, Y)
+
+        for l, layer in enumerate(self.layers):
+            w = np.copy(layer.weights)
+            dw = np.zeros_like(w)
+
+            for i in range(w.shape[0]):
+                for j in range(w.shape[1]):
+                    nw1, nw2 = np.copy(w), np.copy(w)
+                    nw1[i,j] += epsilon
+                    nw2[i,j] -= epsilon
+                    layer.weights = nw1
+                    loss1 = Loss.cross_entropy(self.forward(X.T), Y)
+                    layer.weights = nw2
+                    loss2 = Loss.cross_entropy(self.forward(X.T), Y)
+                    dw[i,j] = (loss1 - loss2) / (2*epsilon)
+
+            maximum_absolute_difference = abs(bp_gradients[l]-dw).max()
+            layer.weights = w
+
+            print(maximum_absolute_difference)
+
+
     def train(self, dataset, epochs, batch_size, lr, evaluate=False, momentum=0.0, decay=0.0):
         X, Y = dataset.X_train, dataset.Y_train
         batches = X.shape[0] // batch_size
@@ -308,6 +344,7 @@ class Model(object):
                     x = np.expand_dims(x, axis=1)
                     y = np.expand_dims(y, axis=1)
                     gradients = self.bp(x, y)
+                    # self.check_gradients(x, y, 0.01)
 
                     # Update weights according to gradients.
                     for j, layer in enumerate(self.layers):
@@ -352,7 +389,7 @@ class Model(object):
         * Backpropagate the error layer by layer by d_j =
           f'(z_j)*sum(w_kj*d_k), where we are computing the error of
           layer j by the means of the next layer k.
-a
+
         * The output is the gradient of the cost function for each
           layer. For each individual weight this is given by the
           activation of the previous layer multiplied by the error of
@@ -367,6 +404,10 @@ a
         activations = [x]
         zs = []
 
+        # We are using loss.mean(), so use normalization factor equal
+        # to number of classes.
+        nf = self.layers[-1].neurons
+
         # Compute activations for each layer.
         for i, layer in enumerate(self.layers):
             z = layer.z(activations[i])
@@ -377,7 +418,7 @@ a
         # this is the only one that uses the actual cost derivative,
         # which in our case is -(t_k - y_k) from log cross entropy.
         d = -(t - activations[-1])
-        gradients.insert(0, np.dot(d, activations[-2].T))
+        gradients.insert(0, np.dot(d, activations[-2].T) / nf)
 
         # Backpropagate errors and add gradients as we go. Note that
         # we reuse the delta for each iteration.
@@ -400,12 +441,12 @@ a
                 masked_ds = d * next_layer.mask
                 delta_sum = np.dot(self.layers[i+2].weights.T, d)
                 d = derivative * np.multiply(delta_sum, next_layer.mask[:, None])
-                gradients.insert(0, np.dot(d, activations[i-1].T))
+                gradients.insert(0, np.dot(d, activations[i-1].T) / nf)
                 next_layer.remask()
             else:
                 derivative = layer.activation.df(zs[i])
                 d = derivative * np.dot(next_layer.weights.T, d)
-                gradients.insert(0, np.dot(d, activations[i-1].T))
+                gradients.insert(0, np.dot(d, activations[i-1].T) / nf)
 
         return gradients
 

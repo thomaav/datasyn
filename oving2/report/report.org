@@ -17,8 +17,10 @@
 [[./mathhhhs-2.png]]
 #+END_center
 
-** 1.2 - Vectorize computation
-TODO
+#+BEGIN_center
+#+ATTR_LATEX: :center :width 1.0\textwidth
+[[./mathhs1-2.jpg]]
+#+END_center
 
 * 2 - MNIST Classification
 #+BEGIN_SRC python
@@ -52,7 +54,15 @@ They are:
 model.train(mnist, epochs=15, batch_size=128, lr=0.5, evaluate=True)
 #+END_SRC
 \\\\
-\textbf{2b)} TODO
+\textbf{2b)} For this task we implemented a ~check_gradients~ method
+in the ~Model~ class. This will do the numerical gradient check over
+every weight in the network, layer by layer. We let this run for only
+about 50 input images, as it took quite a while to compute. The
+maximum absolute difference between the gradient we got from the
+backpropagation algorithm and the numerical computation was
+consistently in the range of $10^{-7}$ to $10^{-8}$ when using an
+$\epsilon$ of 0.01, making it well within the required big-O (for both
+the hidden layer and the output layer).
 \\\\
 \textbf{2c)} Below are the plots obtained from evaluating the model
 every 1/20th epoch. The result is very much as expected, reaching an
