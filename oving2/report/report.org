@@ -95,7 +95,9 @@ accuracy of about 92% without any tricks.
 Note that we did not opt to use plots for this (except a select few
 below), as we found it hard to capture the nuances in a good manner
 within a single plot (they only differ slightly, so we found sampling
-the accuracy every 5th epoch to be a sufficient metric).
+the accuracy every 5th epoch to be a sufficient metric). This was done
+without normalizing the gradients like the loss, which here gave
+faster convergence.
 \\\\
 \textbf{a)} Shuffling examples applies mostly to stochastic learning,
 and perhaps to batch learning, given that the mini batches are small
@@ -122,7 +124,10 @@ Considering this, we plotted the trajectories of the accuracies
 sigmoid and tanh for only the first epoch, but this did not show any
 definite differences either, so we decided not to include the
 plots. We believe the reasoning to be as described above, which is
-similar to what happened in a).
+similar to what happened in a). As an aside, we did more tests later,
+after doing normalization differently, which showed tanh to be
+converging faster than sigmoid. This faster convergence should be what
+you are expected to see in this task.
 \\\\
 \textbf{c)} Changing the initialization of weights to use fan-in
 definitely helped, as shown in the table above. This is as expected,
