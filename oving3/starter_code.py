@@ -140,7 +140,21 @@ class GoodModel(nn.Module):
             ),
             nn.ReLU(),
             nn.BatchNorm2d(32),
-            nn.MaxPool2d(kernel_size=2, stride=1),
+            # nn.MaxPool2d(kernel_size=2, stride=1),
+
+
+            nn.Conv2d(
+                in_channels=32,
+                out_channels=32,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+
+
+
             nn.Conv2d(
                 in_channels=32,
                 out_channels=64,
@@ -149,7 +163,25 @@ class GoodModel(nn.Module):
                 padding=1
             ),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=1)
+            nn.BatchNorm2d(64),
+
+
+
+            nn.Conv2d(
+                in_channels=64,
+                out_channels=64,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.ReLU(),
+            nn.BatchNorm2d(64)
+
+
+            
+
+
+            # nn.MaxPool2d(kernel_size=2, stride=1)
 
             
             # # nn.BatchNorm2d(32),
@@ -158,7 +190,7 @@ class GoodModel(nn.Module):
         )
 
         # self.num_output_features = 128*29*29
-        self.num_output_features = 64*30*30
+        self.num_output_features = 64*32*32
 
         # Xavier init all weights.
         # self.apply(init_xavier)
@@ -194,7 +226,8 @@ class Trainer:
         # Define hyperparameters
         self.epochs = 100
         self.batch_size = 32
-        self.learning_rate = 5e-4
+        # self.learning_rate = 5e-4
+        self.learning_rate = 0.001
         self.early_stop_count = 4
 
         # Architecture
