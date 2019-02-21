@@ -143,7 +143,7 @@ class GoodModel(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=1),
             nn.Conv2d(
                 in_channels=32,
-                out_channels=32,
+                out_channels=64,
                 kernel_size=3,
                 stride=1,
                 padding=1
@@ -156,9 +156,8 @@ class GoodModel(nn.Module):
             # # nn.Dropout(0.2),
         )
 
-        # The output of feature_extractor will be [batch_size, num_filters, 16, 16]
         # self.num_output_features = 128*29*29
-        self.num_output_features = 32*31*31
+        self.num_output_features = 64*31*31
 
         # Xavier init all weights.
         # self.apply(init_xavier)
