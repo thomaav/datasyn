@@ -7,3 +7,7 @@ delivery/
 delivery/*
 __pycache__
 profile.txt
+test/
+test/*
+data/
+data/*
