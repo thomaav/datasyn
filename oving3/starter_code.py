@@ -140,6 +140,7 @@ class GoodModel(nn.Module):
             ),
             nn.ReLU(),
             nn.BatchNorm2d(32),
+            nn.MaxPool2d(kernel_size=2, stride=1),
             nn.Conv2d(
                 in_channels=32,
                 out_channels=32,
@@ -148,6 +149,8 @@ class GoodModel(nn.Module):
                 padding=1
             ),
             nn.ReLU()
+
+            
             # # nn.BatchNorm2d(32),
             # nn.MaxPool2d(kernel_size=2, stride=1),
             # # nn.Dropout(0.2),
