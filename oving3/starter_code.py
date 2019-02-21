@@ -148,7 +148,8 @@ class GoodModel(nn.Module):
                 stride=1,
                 padding=1
             ),
-            nn.ReLU()
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=1)
 
             
             # # nn.BatchNorm2d(32),
@@ -157,7 +158,7 @@ class GoodModel(nn.Module):
         )
 
         # self.num_output_features = 128*29*29
-        self.num_output_features = 64*31*31
+        self.num_output_features = 64*30*30
 
         # Xavier init all weights.
         # self.apply(init_xavier)
