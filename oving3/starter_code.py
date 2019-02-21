@@ -8,8 +8,13 @@ from dataloaders import load_cifar10
 from utils import to_cuda, compute_loss_and_accuracy
 
 
-class ExampleModel(nn.Module):
+def init_xavier(m):
+    if isinstance(m, nn.Conv2d):
+        nn.init.xavier(m.weight.data)
+        nn.init.xavier(m.bias.data)
 
+
+class ExampleModel(nn.Module):
     def __init__(self,
                  image_channels,
                  num_classes):
@@ -61,6 +66,161 @@ class ExampleModel(nn.Module):
         return x
 
 
+class SimpleModel(nn.Module):
+    def __init__(self, image_channels, num_classes):
+        super().__init__()
+
+        # Conv layers for feature extraction.
+        self.feature_extractor = nn.Sequential(
+            nn.Conv2d(
+                in_channels=image_channels,
+                out_channels=32,
+                kernel_size=5,
+                stride=1,
+                padding=2
+            ),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(
+                in_channels=32,
+                out_channels=64,
+                kernel_size=5,
+                stride=1,
+                padding=2
+            ),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(
+                in_channels=64,
+                out_channels=128,
+                kernel_size=5,
+                stride=1,
+                padding=2
+            ),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+
+        # FF layer for classification.
+        self.classifier = nn.Sequential(
+            nn.Linear(128*4*4, 64),
+            nn.ReLU(),
+            nn.Linear(64, num_classes),
+            nn.Softmax(dim=1)
+        )
+
+
+    def forward(self, x):
+        """
+        Performs a forward pass through the model
+        Args:
+            x: Input image, shape: [batch_size, 3, 32, 32]
+        """
+
+        # Run image through convolutional layers
+        x = self.feature_extractor(x)
+        # Reshape our input to (batch_size, num_output_features)
+        x = x.view(-1, 128*4*4)
+        # Forward pass through the fully-connected layers.
+        x = self.classifier(x)
+        return x
+
+
+class GoodModel(nn.Module):
+    def __init__(self, image_channels, num_classes):
+        super().__init__()
+
+        # Conv for feature extraction.
+        self.feature_extractor = nn.Sequential(
+            nn.Conv2d(
+                in_channels=image_channels,
+                out_channels=32,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+            nn.Conv2d(
+                in_channels=32,
+                out_channels=32,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+            nn.MaxPool2d(kernel_size=2, stride=1),
+            nn.Dropout(0.2),
+
+            nn.Conv2d(
+                in_channels=32,
+                out_channels=64,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+            nn.Conv2d(
+                in_channels=64,
+                out_channels=64,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+            nn.MaxPool2d(kernel_size=2, stride=1),
+            nn.Dropout(0.2),
+
+            nn.Conv2d(
+                in_channels=64,
+                out_channels=128,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.ReLU(),
+            nn.BatchNorm2d(128),
+            nn.Conv2d(
+                in_channels=128,
+                out_channels=128,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.ReLU(),
+            nn.BatchNorm2d(128),
+            nn.MaxPool2d(kernel_size=2, stride=1),
+            nn.Dropout(0.5)
+        )
+
+        # Xavier init all weights.
+        feature_extraction.apply(init_xavier)
+
+        # FF for classification.
+        self.classifier = nn.Sequential(
+            nn.Linear(128*8*8, num_classes),
+            nn.Softmax(dim=1)
+        )
+
+
+    def forward(self, x):
+        """
+        Performs a forward pass through the model
+        Args:
+            x: Input image, shape: [batch_size, 3, 32, 32]
+        """
+
+        # Run image through convolutional layers
+        x = self.feature_extractor(x)
+        # Reshape our input to (batch_size, num_output_features)
+        x = x.view(-1, 128*29*29)
+        # Forward pass through the fully-connected layers.
+        x = self.classifier(x)
+        return x
+
 class Trainer:
     def __init__(self):
         """
@@ -78,7 +238,7 @@ class Trainer:
         # Since we are doing multi-class classification, we use the CrossEntropyLoss
         self.loss_criterion = nn.CrossEntropyLoss()
         # Initialize the mode
-        self.model = ExampleModel(image_channels=3, num_classes=10)
+        self.model = SimpleModel(image_channels=3, num_classes=10)
         # Transfer model to GPU VRAM, if possible.
         self.model = to_cuda(self.model)
 
@@ -151,7 +311,7 @@ class Trainer:
         Trains the model for [self.epochs] epochs.
         """
         # Track initial loss/accuracy
-        self.validation_epoch()
+        # self.validation_epoch()
         for epoch in range(self.epochs):
             # Perform a full pass through all the training samples
             for batch_it, (X_batch, Y_batch) in enumerate(self.dataloader_train):
