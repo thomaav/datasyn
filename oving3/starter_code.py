@@ -147,56 +147,57 @@ class GoodModel(nn.Module):
                 stride=1,
                 padding=1
             ),
-            nn.ReLU(),
-            # nn.BatchNorm2d(32),
-            nn.MaxPool2d(kernel_size=2, stride=1),
-            # nn.Dropout(0.2),
+            nn.ReLU()
+            # # nn.BatchNorm2d(32),
+            # nn.MaxPool2d(kernel_size=2, stride=1),
+            # # nn.Dropout(0.2),
 
-            nn.Conv2d(
-                in_channels=32,
-                out_channels=64,
-                kernel_size=3,
-                stride=1,
-                padding=1
-            ),
-            nn.ReLU(),
-            # nn.BatchNorm2d(64),
-            nn.Conv2d(
-                in_channels=64,
-                out_channels=64,
-                kernel_size=3,
-                stride=1,
-                padding=1
-            ),
-            nn.ReLU(),
-            # nn.BatchNorm2d(64),
-            nn.MaxPool2d(kernel_size=2, stride=1),
-            # nn.Dropout(0.2),
+            # nn.Conv2d(
+            #     in_channels=32,
+            #     out_channels=64,
+            #     kernel_size=3,
+            #     stride=1,
+            #     padding=1
+            # ),
+            # nn.ReLU(),
+            # # nn.BatchNorm2d(64),
+            # nn.Conv2d(
+            #     in_channels=64,
+            #     out_channels=64,
+            #     kernel_size=3,
+            #     stride=1,
+            #     padding=1
+            # ),
+            # nn.ReLU(),
+            # # nn.BatchNorm2d(64),
+            # nn.MaxPool2d(kernel_size=2, stride=1),
+            # # nn.Dropout(0.2),
 
-            nn.Conv2d(
-                in_channels=64,
-                out_channels=128,
-                kernel_size=3,
-                stride=1,
-                padding=1
-            ),
-            nn.ReLU(),
-            # nn.BatchNorm2d(128),
-            nn.Conv2d(
-                in_channels=128,
-                out_channels=128,
-                kernel_size=3,
-                stride=1,
-                padding=1
-            ),
-            nn.ReLU(),
-            # nn.BatchNorm2d(128),
-            nn.MaxPool2d(kernel_size=2, stride=1),
-            # nn.Dropout(0.5)
+            # nn.Conv2d(
+            #     in_channels=64,
+            #     out_channels=128,
+            #     kernel_size=3,
+            #     stride=1,
+            #     padding=1
+            # ),
+            # nn.ReLU(),
+            # # nn.BatchNorm2d(128),
+            # nn.Conv2d(
+            #     in_channels=128,
+            #     out_channels=128,
+            #     kernel_size=3,
+            #     stride=1,
+            #     padding=1
+            # ),
+            # nn.ReLU(),
+            # # nn.BatchNorm2d(128),
+            # nn.MaxPool2d(kernel_size=2, stride=1),
+            # # nn.Dropout(0.5)
         )
 
         # The output of feature_extractor will be [batch_size, num_filters, 16, 16]
-        self.num_output_features = 128*29*29
+        # self.num_output_features = 128*29*29
+        self.num_output_features = 32*32*32
 
         # Xavier init all weights.
         # self.apply(init_xavier)
@@ -245,7 +246,7 @@ class Trainer:
         self.model = to_cuda(self.model)
 
         # Init xavier weights
-        self.model.apply(init_xavier)
+        # self.model.apply(init_xavier)
         # self.model.apply()
 
         # Define our optimizer. SGD = Stochastich Gradient Descent
