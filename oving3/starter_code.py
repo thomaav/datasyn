@@ -139,7 +139,7 @@ class GoodModel(nn.Module):
                 padding=1
             ),
             nn.ReLU(),
-            nn.BatchNorm2d(32),
+            # nn.BatchNorm2d(32),
             nn.Conv2d(
                 in_channels=32,
                 out_channels=32,
@@ -148,9 +148,9 @@ class GoodModel(nn.Module):
                 padding=1
             ),
             nn.ReLU(),
-            nn.BatchNorm2d(32),
+            # nn.BatchNorm2d(32),
             nn.MaxPool2d(kernel_size=2, stride=1),
-            nn.Dropout(0.2),
+            # nn.Dropout(0.2),
 
             nn.Conv2d(
                 in_channels=32,
@@ -160,7 +160,7 @@ class GoodModel(nn.Module):
                 padding=1
             ),
             nn.ReLU(),
-            nn.BatchNorm2d(64),
+            # nn.BatchNorm2d(64),
             nn.Conv2d(
                 in_channels=64,
                 out_channels=64,
@@ -169,9 +169,9 @@ class GoodModel(nn.Module):
                 padding=1
             ),
             nn.ReLU(),
-            nn.BatchNorm2d(64),
+            # nn.BatchNorm2d(64),
             nn.MaxPool2d(kernel_size=2, stride=1),
-            nn.Dropout(0.2),
+            # nn.Dropout(0.2),
 
             nn.Conv2d(
                 in_channels=64,
@@ -181,7 +181,7 @@ class GoodModel(nn.Module):
                 padding=1
             ),
             nn.ReLU(),
-            nn.BatchNorm2d(128),
+            # nn.BatchNorm2d(128),
             nn.Conv2d(
                 in_channels=128,
                 out_channels=128,
@@ -190,9 +190,9 @@ class GoodModel(nn.Module):
                 padding=1
             ),
             nn.ReLU(),
-            nn.BatchNorm2d(128),
+            # nn.BatchNorm2d(128),
             nn.MaxPool2d(kernel_size=2, stride=1),
-            nn.Dropout(0.5)
+            # nn.Dropout(0.5)
         )
 
         # The output of feature_extractor will be [batch_size, num_filters, 16, 16]
