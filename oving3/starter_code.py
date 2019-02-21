@@ -158,7 +158,7 @@ class GoodModel(nn.Module):
 
         # The output of feature_extractor will be [batch_size, num_filters, 16, 16]
         # self.num_output_features = 128*29*29
-        self.num_output_features = 32*32*32
+        self.num_output_features = 32*31*31
 
         # Xavier init all weights.
         # self.apply(init_xavier)
