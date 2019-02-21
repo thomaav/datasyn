@@ -10,8 +10,7 @@ from utils import to_cuda, compute_loss_and_accuracy
 
 def init_xavier(m):
     if isinstance(m, nn.Conv2d):
-        nn.init.xavier(m.weight.data)
-        nn.init.xavier(m.bias.data)
+        nn.init.xavier_uniform_(m.weight)
 
 
 class ExampleModel(nn.Module):
@@ -196,12 +195,15 @@ class GoodModel(nn.Module):
             nn.Dropout(0.5)
         )
 
+        # The output of feature_extractor will be [batch_size, num_filters, 16, 16]
+        self.num_output_features = 128*29*29
+
         # Xavier init all weights.
-        feature_extraction.apply(init_xavier)
+        # self.apply(init_xavier)
 
         # FF for classification.
         self.classifier = nn.Sequential(
-            nn.Linear(128*8*8, num_classes),
+            nn.Linear(self.num_output_features, num_classes),
             nn.Softmax(dim=1)
         )
 
@@ -216,7 +218,7 @@ class GoodModel(nn.Module):
         # Run image through convolutional layers
         x = self.feature_extractor(x)
         # Reshape our input to (batch_size, num_output_features)
-        x = x.view(-1, 128*29*29)
+        x = x.view(-1, self.num_output_features)
         # Forward pass through the fully-connected layers.
         x = self.classifier(x)
         return x
@@ -241,6 +243,10 @@ class Trainer:
         self.model = GoodModel(image_channels=3, num_classes=10)
         # Transfer model to GPU VRAM, if possible.
         self.model = to_cuda(self.model)
+
+        # Init xavier weights
+        self.model.apply(init_xavier)
+        # self.model.apply()
 
         # Define our optimizer. SGD = Stochastich Gradient Descent
         # self.optimizer = torch.optim.SGD(self.model.parameters(),
