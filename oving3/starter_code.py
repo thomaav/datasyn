@@ -206,7 +206,7 @@ class Trainer:
         self.model = to_cuda(self.model)
 
         # Init xavier weights
-        # self.model.apply(init_xavier)
+        self.model.apply(init_xavier)
         # self.model.apply()
 
         # Define our optimizer. SGD = Stochastich Gradient Descent
