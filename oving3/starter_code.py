@@ -140,7 +140,6 @@ class GoodModel(nn.Module):
             ),
             nn.ReLU(),
             nn.BatchNorm2d(32),
-            # nn.MaxPool2d(kernel_size=2, stride=1),
 
 
             nn.Conv2d(
@@ -152,6 +151,7 @@ class GoodModel(nn.Module):
             ),
             nn.ReLU(),
             nn.BatchNorm2d(32),
+            nn.MaxPool2d(kernel_size=2, stride=2),
 
 
 
@@ -175,29 +175,37 @@ class GoodModel(nn.Module):
                 padding=1
             ),
             nn.ReLU(),
-            nn.BatchNorm2d(64)
-
-
-            
-
-
-            # nn.MaxPool2d(kernel_size=2, stride=1)
+            nn.BatchNorm2d(64),
+            nn.MaxPool2d(kernel_size=2, stride=2),
 
             
-            # # nn.BatchNorm2d(32),
-            # nn.MaxPool2d(kernel_size=2, stride=1),
-            # # nn.Dropout(0.2),
+
+
+            nn.Conv2d(
+                in_channels=64,
+                out_channels=128,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.ReLU(),
+            nn.BatchNorm2d(128),
+            nn.MaxPool2d(kernel_size=2, stride=2)
         )
 
         # self.num_output_features = 128*29*29
-        self.num_output_features = 64*32*32
+        self.num_output_features = 128*4*4
 
         # Xavier init all weights.
         # self.apply(init_xavier)
 
         # FF for classification.
         self.classifier = nn.Sequential(
-            nn.Linear(self.num_output_features, num_classes),
+            nn.Linear(self.num_output_features, 64),
+            nn.ReLU(),
+            nn.Dropout(0.15),
+            nn.Linear(64, num_classes),
+            nn.Dropout(0.15),
             nn.Softmax(dim=1)
         )
 
@@ -225,10 +233,19 @@ class Trainer:
         """
         # Define hyperparameters
         self.epochs = 100
-        self.batch_size = 32
-        # self.learning_rate = 5e-4
-        self.learning_rate = 0.001
+        self.batch_size = 64
+        self.learning_rate = 5e-2
         self.early_stop_count = 4
+
+        # Task1
+        # self.batch_size = 64
+        # self.learning_rate = 5e-2
+
+        # Task2 first good model
+        # self.batch_size = 64
+        # Adam with lr=5e-4
+        # Adding xavier is fine
+        # Reached 78% on epoch 10.
 
         # Architecture
 
@@ -240,18 +257,17 @@ class Trainer:
         self.model = to_cuda(self.model)
 
         # Init xavier weights
-        # self.model.apply(init_xavier)
-        # self.model.apply()
+        self.model.apply(init_xavier)
 
         # Define our optimizer. SGD = Stochastich Gradient Descent
-        self.optimizer = torch.optim.SGD(self.model.parameters(),
-                                         self.learning_rate)
-        # self.optimizer = torch.optim.Adam(self.model.parameters(), self.learning_rate)
+        # self.optimizer = torch.optim.SGD(self.model.parameters(),
+        #                                  self.learning_rate)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=5e-4, weight_decay=0.001)
 
         # Load our dataset
         self.dataloader_train, self.dataloader_val, self.dataloader_test = load_cifar10(self.batch_size)
 
-        self.validation_check = len(self.dataloader_train) // 2
+        self.validation_check = len(self.dataloader_train)
 
         # Tracking variables
         self.VALIDATION_LOSS = []
@@ -281,13 +297,16 @@ class Trainer:
         )
         self.VALIDATION_ACC.append(validation_acc)
         self.VALIDATION_LOSS.append(validation_loss)
-        print("Current validation loss:", validation_loss, " Accuracy:", validation_acc)
         # Compute for testing set
         test_loss, test_acc = compute_loss_and_accuracy(
             self.dataloader_test, self.model, self.loss_criterion
         )
         self.TEST_ACC.append(test_acc)
         self.TEST_LOSS.append(test_loss)
+
+        print("Current training loss:", train_loss, " Accuracy:", train_acc)
+        print("Current validation loss:", validation_loss, " Accuracy:", validation_acc)
+        print("Current test loss:", test_loss, " Accuracy:", test_acc)
 
         self.model.train()
 
@@ -315,6 +334,7 @@ class Trainer:
         # Track initial loss/accuracy
         # self.validation_epoch()
         for epoch in range(self.epochs):
+            print("Epoch: {e}".format(e=epoch+1))
             # Perform a full pass through all the training samples
             for batch_it, (X_batch, Y_batch) in enumerate(self.dataloader_train):
                 # X_batch is the CIFAR10 images. Shape: [batch_size, 3, 32, 32]
