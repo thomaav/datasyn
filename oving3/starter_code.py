@@ -105,7 +105,6 @@ class SimpleModel(nn.Module):
             nn.Linear(128*4*4, 64),
             nn.ReLU(),
             nn.Linear(64, num_classes),
-            nn.Softmax(dim=1)
         )
 
 
@@ -178,7 +177,6 @@ class GoodModel(nn.Module):
             nn.BatchNorm2d(64),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
-            
 
 
             nn.Conv2d(
@@ -206,7 +204,6 @@ class GoodModel(nn.Module):
             nn.Dropout(0.15),
             nn.Linear(64, num_classes),
             nn.Dropout(0.15),
-            nn.Softmax(dim=1)
         )
 
 
@@ -224,6 +221,150 @@ class GoodModel(nn.Module):
         # Forward pass through the fully-connected layers.
         x = self.classifier(x)
         return x
+
+
+class GoodestModel(nn.Module):
+    def __init__(self, image_channels, num_classes):
+        super().__init__()
+
+        # Conv for feature extraction.
+        self.feature_extractor = nn.Sequential(
+            # 64
+            nn.Conv2d(
+                in_channels=image_channels,
+                out_channels=64,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+
+
+
+            nn.Conv2d(
+                in_channels=64,
+                out_channels=64,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Dropout(0.1),
+
+
+            # 128
+            nn.Conv2d(
+                in_channels=64,
+                out_channels=128,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+
+
+
+            nn.Conv2d(
+                in_channels=128,
+                out_channels=128,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Dropout(0.2),
+
+
+            # 256
+            nn.Conv2d(
+                in_channels=128,
+                out_channels=256,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+
+
+
+            nn.Conv2d(
+                in_channels=256,
+                out_channels=256,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Dropout(0.3),
+
+
+
+            # 512
+            nn.Conv2d(
+                in_channels=256,
+                out_channels=512,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+
+
+
+            nn.Conv2d(
+                in_channels=512,
+                out_channels=512,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Dropout(0.3),
+        )
+
+        self.num_output_features = 512*2*2
+
+        # FF for classification.
+        self.classifier = nn.Sequential(
+            nn.Linear(self.num_output_features, 1024),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(1024, 1024),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(1024, num_classes),
+        )
+
+
+    def forward(self, x):
+        """
+        Performs a forward pass through the model
+        Args:
+            x: Input image, shape: [batch_size, 3, 32, 32]
+        """
+
+        # Run image through convolutional layers
+        x = self.feature_extractor(x)
+        # Reshape our input to (batch_size, num_output_features)
+        x = x.view(-1, self.num_output_features)
+        # Forward pass through the fully-connected layers.
+        x = self.classifier(x)
+        return x
+
 
 class Trainer:
     def __init__(self):
@@ -252,7 +393,7 @@ class Trainer:
         # Since we are doing multi-class classification, we use the CrossEntropyLoss
         self.loss_criterion = nn.CrossEntropyLoss()
         # Initialize the mode
-        self.model = GoodModel(image_channels=3, num_classes=10)
+        self.model = GoodestModel(image_channels=3, num_classes=10)
         # Transfer model to GPU VRAM, if possible.
         self.model = to_cuda(self.model)
 
@@ -262,7 +403,7 @@ class Trainer:
         # Define our optimizer. SGD = Stochastich Gradient Descent
         # self.optimizer = torch.optim.SGD(self.model.parameters(),
         #                                  self.learning_rate)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=5e-4, weight_decay=0.001)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4)
 
         # Load our dataset
         self.dataloader_train, self.dataloader_val, self.dataloader_test = load_cifar10(self.batch_size)
@@ -336,7 +477,7 @@ class Trainer:
         for epoch in range(self.epochs):
             print("Epoch: {e}".format(e=epoch+1))
             # Perform a full pass through all the training samples
-            for batch_it, (X_batch, Y_batch) in enumerate(self.dataloader_train):
+            for batch_it, (X_batch, Y_batch) in enumerate(tqdm.tqdm(self.dataloader_train)):
                 # X_batch is the CIFAR10 images. Shape: [batch_size, 3, 32, 32]
                 # Y_batch is the CIFAR10 image label. Shape: [batch_size]
                 # Transfer images / labels to GPU VRAM, if possible
@@ -356,13 +497,13 @@ class Trainer:
 
                 # Reset all computed gradients to 0
                 self.optimizer.zero_grad()
-                 # Compute loss/accuracy for all three datasets.
-                if batch_it % self.validation_check == 0:
-                    self.validation_epoch()
-                    # Check early stopping criteria.
-                    if self.should_early_stop():
-                        print("Early stopping.")
-                        return
+
+            # Compute loss/accuracy for all three datasets.
+            self.validation_epoch()
+            # Check early stopping criteria.
+            if self.should_early_stop():
+                print("Early stopping.")
+                return
 
 
 if __name__ == "__main__":
