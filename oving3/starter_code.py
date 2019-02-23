@@ -331,7 +331,7 @@ class GoodestModel(nn.Module):
             nn.BatchNorm2d(512),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),
         )
 
         self.num_output_features = 512*2*2
@@ -384,7 +384,7 @@ class Trainer:
 
         # Task2 first good model
         # self.batch_size = 64
-        # Adam with lr=5e-4
+        # Adam with lr=5e-4, decay=0.001 or so
         # Adding xavier is fine
         # Reached 78% on epoch 10.
 
@@ -403,7 +403,7 @@ class Trainer:
         # Define our optimizer. SGD = Stochastich Gradient Descent
         # self.optimizer = torch.optim.SGD(self.model.parameters(),
         #                                  self.learning_rate)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=3e-4)
 
         # Load our dataset
         self.dataloader_train, self.dataloader_val, self.dataloader_test = load_cifar10(self.batch_size)
