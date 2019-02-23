@@ -331,12 +331,13 @@ class GoodestModel(nn.Module):
             nn.BatchNorm2d(512),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Dropout(0.4),
+            nn.Dropout(0.5),
         )
 
         self.num_output_features = 512*2*2
 
-        # FF for classification.
+        # FF for classification. Size avg. of out from CNN and out for
+        # classification, (2048 + 10) / 2.
         self.classifier = nn.Sequential(
             nn.Linear(self.num_output_features, 1024),
             nn.BatchNorm1d(1024),
@@ -403,7 +404,7 @@ class Trainer:
         # Define our optimizer. SGD = Stochastich Gradient Descent
         # self.optimizer = torch.optim.SGD(self.model.parameters(),
         #                                  self.learning_rate)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=3e-4)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=6e-4)
 
         # Load our dataset
         self.dataloader_train, self.dataloader_val, self.dataloader_test = load_cifar10(self.batch_size)
