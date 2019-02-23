@@ -1,10 +1,11 @@
 import os
 import matplotlib.pyplot as plt
 import torch
+import torchvision
 import tqdm
 import dataloaders
 from torch import nn
-from dataloaders import load_cifar10
+from dataloaders import load_cifar10, mean, std
 from utils import to_cuda, compute_loss_and_accuracy
 
 
@@ -343,10 +344,12 @@ class GoodestModel(nn.Module):
             nn.BatchNorm1d(1024),
             nn.ReLU(),
             nn.Dropout(0.5),
+
             nn.Linear(1024, 1024),
             nn.BatchNorm1d(1024),
             nn.ReLU(),
             nn.Dropout(0.5),
+
             nn.Linear(1024, num_classes),
         )
 
@@ -365,6 +368,54 @@ class GoodestModel(nn.Module):
         # Forward pass through the fully-connected layers.
         x = self.classifier(x)
         return x
+
+
+class ResNet18(nn.Module):
+    def __init__(self, image_channels, num_classes):
+        super().__init__()
+
+        self.model = torchvision.models.resnet18(pretrained=True)
+        self.model.fc = nn.Sequential(
+            nn.Linear(2048, 10)
+        )
+
+        for param in self.model.parameters():
+            param.requires_grad = False
+        for param in self.model.fc.parameters():
+            param.requires_grad = True
+        for param in self.model.layer4.parameters():
+            param.requires_grad = True
+
+
+    def forward(self, x):
+        x = nn.functional.interpolate(x, scale_factor=8)
+        x = self.model(x)
+        return x
+
+
+def visualize_resnet18(image):
+    image = plt.imread(image)
+    image = torchvision.transforms.functional.to_tensor(image)
+    image = torchvision.transforms.functional.normalize(image, mean, std)
+    image = image.view(1, *image.shape)
+    image = nn.functional.interpolate(image, size=(256, 256))
+
+    model = torchvision.models.resnet18(pretrained=True)
+
+    # First conv layer.
+    first_layer_out = model.conv1(image)
+    to_viz = first_layer_out.view(first_layer_out.shape[1], 1, *first_layer_out.shape[2:])
+    torchvision.utils.save_image(to_viz, 'filters_first_layer.png')
+
+    # Last conv layer.
+    to_last_conv_layer = nn.Sequential(*list(model.children())[:-2])
+    last_layer_out = to_last_conv_layer(image)
+    to_viz = last_layer_out.view(last_layer_out.shape[1], 1, *last_layer_out.shape[2:])
+    torchvision.utils.save_image(to_viz, 'filters_last_layer.png')
+
+    # Weights.
+    # https://discuss.pytorch.org/t/understanding-deep-network-visualize-weights/2060/6
+    torchvision.utils.save_image(model.conv1.weight.data, 'weights.png')
 
 
 class Trainer:
@@ -389,22 +440,28 @@ class Trainer:
         # Adding xavier is fine
         # Reached 78% on epoch 10.
 
+        # ResNet18 transfer
+        self.batch_size = 32
+
         # Architecture
 
         # Since we are doing multi-class classification, we use the CrossEntropyLoss
         self.loss_criterion = nn.CrossEntropyLoss()
         # Initialize the mode
-        self.model = GoodestModel(image_channels=3, num_classes=10)
+        self.model = ResNet18(image_channels=3, num_classes=10)
         # Transfer model to GPU VRAM, if possible.
         self.model = to_cuda(self.model)
 
         # Init xavier weights
-        self.model.apply(init_xavier)
+        # self.model.apply(init_xavier)
 
         # Define our optimizer. SGD = Stochastich Gradient Descent
         # self.optimizer = torch.optim.SGD(self.model.parameters(),
         #                                  self.learning_rate)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=6e-4)
+        # self.optimizer = torch.optim.Adam(self.model.parameters(), lr=6e-4)
+
+        # Resnet transfer
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=5e-4)
 
         # Load our dataset
         self.dataloader_train, self.dataloader_val, self.dataloader_test = load_cifar10(self.batch_size)
@@ -508,6 +565,10 @@ class Trainer:
 
 
 if __name__ == "__main__":
+    print('viz')
+    visualize_resnet18('frog.png')
+    print('doneviz')
+
     trainer = Trainer()
     trainer.train()
 
