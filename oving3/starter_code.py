@@ -81,6 +81,7 @@ class SimpleModel(nn.Module):
             ),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
+
             nn.Conv2d(
                 in_channels=32,
                 out_channels=64,
@@ -90,6 +91,7 @@ class SimpleModel(nn.Module):
             ),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
+
             nn.Conv2d(
                 in_channels=64,
                 out_channels=128,
@@ -194,9 +196,6 @@ class GoodModel(nn.Module):
 
         # self.num_output_features = 128*29*29
         self.num_output_features = 128*4*4
-
-        # Xavier init all weights.
-        # self.apply(init_xavier)
 
         # FF for classification.
         self.classifier = nn.Sequential(
@@ -413,21 +412,30 @@ def visualize_resnet18(image):
     to_viz = last_layer_out.view(last_layer_out.shape[1], 1, *last_layer_out.shape[2:])
     torchvision.utils.save_image(to_viz, 'filters_last_layer.png')
 
-    # Weights.
-    # https://discuss.pytorch.org/t/understanding-deep-network-visualize-weights/2060/6
-    torchvision.utils.save_image(model.conv1.weight.data, 'weights.png')
+    # Weights. Only plot one channel for now (which you can change in
+    # different runs, of course).
+    fig = plt.figure(figsize=(8, 8))
+    weights = model.conv1.weight.data.permute(1, 0, 2, 3)
+    for i, kernel in enumerate(weights[2]):
+        ax1 = fig.add_subplot(8, 8, i+1)
+        ax1.imshow(kernel, cmap='gray')
+        ax1.axis('off')
+        ax1.set_xticklabels([])
+        ax1.set_yticklabels([])
+
+    plt.subplots_adjust(wspace=0.1, hspace=0.1)
+    plt.savefig(os.path.join("plots", "weights.png"))
 
 
 class Trainer:
-    def __init__(self):
+    def __init__(self, ResNet=False):
         """
         Initialize our trainer class.
         Set hyperparameters, architecture, tracking variables etc.
         """
         # Define hyperparameters
-        self.epochs = 100
+        self.epochs = 6
         self.batch_size = 64
-        self.learning_rate = 5e-2
         self.early_stop_count = 4
 
         # Task1
@@ -441,14 +449,18 @@ class Trainer:
         # Reached 78% on epoch 10.
 
         # ResNet18 transfer
-        self.batch_size = 32
+        if ResNet:
+            self.batch_size = 32
 
         # Architecture
 
         # Since we are doing multi-class classification, we use the CrossEntropyLoss
         self.loss_criterion = nn.CrossEntropyLoss()
         # Initialize the mode
-        self.model = ResNet18(image_channels=3, num_classes=10)
+        if ResNet:
+            self.model = ResNet18(image_channels=3, num_classes=10)
+        else:
+            self.model = GoodestModel(image_channels=3, num_classes=10)
         # Transfer model to GPU VRAM, if possible.
         self.model = to_cuda(self.model)
 
@@ -456,17 +468,16 @@ class Trainer:
         # self.model.apply(init_xavier)
 
         # Define our optimizer. SGD = Stochastich Gradient Descent
-        # self.optimizer = torch.optim.SGD(self.model.parameters(),
-        #                                  self.learning_rate)
-        # self.optimizer = torch.optim.Adam(self.model.parameters(), lr=6e-4)
+        # self.optimizer = torch.optim.SGD(self.model.parameters(), lr=5e-4)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=5e-4)
 
         # Resnet transfer
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=5e-4)
+        # self.optimizer = torch.optim.Adam(self.model.parameters(), lr=5e-4)
 
         # Load our dataset
         self.dataloader_train, self.dataloader_val, self.dataloader_test = load_cifar10(self.batch_size)
 
-        self.validation_check = len(self.dataloader_train)
+        self.validation_check = len(self.dataloader_train) // 2
 
         # Tracking variables
         self.VALIDATION_LOSS = []
@@ -526,12 +537,15 @@ class Trainer:
             previous_loss = current_loss
         return True
 
+
     def train(self):
         """
         Trains the model for [self.epochs] epochs.
         """
-        # Track initial loss/accuracy
-        # self.validation_epoch()
+        # Max validations set here, as validation_check is sometimes
+        # even and sometimes odd, depending on batch size.
+        max_validations = 2
+        validations = 0
         for epoch in range(self.epochs):
             print("Epoch: {e}".format(e=epoch+1))
             # Perform a full pass through all the training samples
@@ -556,19 +570,22 @@ class Trainer:
                 # Reset all computed gradients to 0
                 self.optimizer.zero_grad()
 
-            # Compute loss/accuracy for all three datasets.
-            self.validation_epoch()
-            # Check early stopping criteria.
-            if self.should_early_stop():
-                print("Early stopping.")
-                return
+                # Compute loss/accuracy for all three datasets.
+                if batch_it % self.validation_check == 0:
+                    if validations >= max_validations:
+                        continue
+                    print('Validation for epoch: {epoch}'.format(epoch=epoch))
+                    self.validation_epoch()
+                    validations += 1
+                    # Check early stopping criteria.
+                    if self.should_early_stop():
+                        print("Early stopping.")
+                        return
+
+            validations = 0
 
 
 if __name__ == "__main__":
-    print('viz')
-    visualize_resnet18('frog.png')
-    print('doneviz')
-
     trainer = Trainer()
     trainer.train()
 
