@@ -69,7 +69,18 @@ all the tests.
 [[./plots/tests.png]]
 #+END_center
 * 3 - You Only Look Once
-\textbf{a)} 
+\textbf{a)} There are spatial constraints on bounding box predictions
+because of the fact that each grid cell only predicts two boxes, and
+only one class. And thus, to cite the paper, «this spatial constraint
+limits the number of nearby objects that our model can predict. Our
+model struggles with objects that appear in groups, such as flocks of
+birds.»
+\\\\
+The generalization constraint concerns the issue YOLO has with
+generalizing to objects in «new or unusual aspect ratios or
+configurations.» This is because of the fact that the model is trained
+to predict bounding boxes from data, such that images the model is not
+used to will hinder generalization.
 \\\\
 \textbf{b)} False. YOLO does not utilize a sliding window approach to
 detect objects, but instead sees the entire image in a global manner.
@@ -80,7 +91,16 @@ done. It uses fewer convolutional layers, and fewer filters in those
 layers. Besides the size, everything is otherwise the same (training
 and testing parameters, that is).
 \\\\
-\textbf{d)} l
+\textbf{d)} According to the authors, both Fast and Faster R-CNN fall
+short of real-time performance. «Instead of trying to optimize
+individual components of a large detection pipeline, YOLO throws out
+the pipeline entirely and is fast by design.»
+\\\\
+However, as answered above, YOLO has some limitations regarding
+spacial constraints that can be mitigated with Faster R-CNN, at the
+cost of speed. Faster R-CNN does not have this same spatial
+constraints on grid cells, which may give the Faster R-CNN higher
+accuracy in some cases.
 \\\\
 * 4 - Object detection with YOLO
 I was a bit confused on this task by the fact that I thought the
