@@ -1,0 +1,70 @@
+#+TITLE: TDT4265 - Computer Vision and Deep Learning Project Proposal
+#+AUTHOR: Thomas Aven
+#+EXPORT_FILE_NAME: tdt4265_thomaav
+#+LATEX_CLASS: thomaav
+#+LATEX_CLASS_OPTIONS: [abstract=off,oneside]
+#+OPTIONS: toc:nil
+#+OPTIONS: ^:nil
+#+OPTIONS: num:nil
+
+* Goal of the project - Deep Reinforcement Learning
+For the project I initially wanted to some sort of object detection to
+recognize objects of interest in frames in video games. I played a
+point-and-click game called RuneScape as a kid, and thought this could
+be a fun project, but then I noticed the proposed DRL project and
+immediately changed my mind.
+\\\\
+For all the other projects I already knew a bit about how the
+underlying method and models would work, but I have absolutely
+\textit{no experience} with RL, besides reading a few papers. So my
+goal for this project is to expand my knowledge on RL and Q-learning,
+and to apply what I already know about DL.
+\\\\
+More concretely, I will start off according to the project proposal,
+using the OpenAI gym with simple FC architectures to learn the
+fundamentals. Then I will move on to simple Atari games, as this is a
+very common platform for RL. Hopefully I will also be able to use my
+implementation to beat some of my own 2D games (e.g. a Space Invaders
+clone I made a very long time ago). Further, when I've the basics
+under control, I will try to move on to SOTA methods (I've not quite
+decided what I will implement here yet).
+
+* Relevant literature
+There is an abundance of literature on the relevant topics
+available. The \textit{Further Reading} section presented for this
+project is a great introduction. In addition, I think I will get the
+most out of reading through previous implementations in different RL
+environments (e.g. on Medium or relevant code repositories), and to
+try to maneuver through the massive amounts of papers arXiv has to
+offer (of which I will probably read quite a lot as I'm working and
+come up with questions that need answering).
+\\\\
+An example of a list of relevant literature can be found at the bottom
+of the README here https://github.com/keras-rl/keras-rl.
+
+* Model architectures
+I'll follow the recommendations of the proposal, and start simple with
+FC networks. Eventually I'll likely have to move on to CNNs and
+experiment to find out what works. I would also like to have a look at
+how transfer learning would work with DRL
+(e.g. https://arxiv.org/abs/1806.07377), to adapt to small visual
+changes.
+
+* Datasets
+Perhaps not that relevant, but the datasets required are the
+environments of the agents. For this project this will start of being
+simple environments in the OpenAI gym, and then move on to more
+complex environments as I see fit. Hopefully I will be able to find
+some novel environment that has no write up (with all the hard
+questions already answered), such that I can put what I've learned to
+a real test.
+
+* Existing implementations
+https://github.com/keras-rl/keras-rl is a nice starting point to see
+how DQN can be implemented with the use of Keras. The repository also
+contains a bunch of examples. My goal is to create my own code base,
+and not use any of the code contained in the repository
+above. However, I will not completely re-invent the wheel, and thus of
+course I will use DL frameworks (I've found e.g. both Keras and
+PyTorch to be quite enjoyable to work with, but I'm leaning slightly
+towards PyTorch).
