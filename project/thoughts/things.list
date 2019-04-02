@@ -1,0 +1,4 @@
+- dqn with cartpole might struggle at the edges, as it cannot see the
+  edge, however, it is able to see that the cart is farther to the
+  side of the image
+- 

@@ -13,7 +13,8 @@ import torchvision.transforms as T
 import torch.optim as optim
 
 
-ENV_NAME = 'CartPole-v0'
+# ENV_NAME = 'CartPole-v0'
+ENV_NAME = 'CartPole-v1'
 # ENV_NAME = 'MountainCar-v0'
 
 
@@ -76,15 +77,14 @@ class CartPoleScreenPreprocessor(ScreenPreprocessor):
         return screen[:, :, img_cart_slice]
 
 
-class DQN(nn.Module):
+class FCDQN(nn.Module):
     def __init__(self, observation_shape, output_shape):
         super().__init__()
 
-        self.fc1 = nn.Linear(observation_shape, 64)
-        self.fc2 = nn.Linear(64, 64)
-        self.fc3 = nn.Linear(64, 64)
-
-        self.classifier = nn.Linear(64, output_shape)
+        self.fc1 = nn.Linear(observation_shape, 256)
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, 128)
+        self.classifier = nn.Linear(128, output_shape)
 
 
     def forward(self, x):
@@ -98,36 +98,72 @@ class DQN(nn.Module):
         return self(x).max(1)[1].view(1, 1)
 
 
+class CNNDQN(nn.Module):
+    def __init__(self, height, width, output_shape):
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=5, stride=2)
+        self.bn1 = nn.BatchNorm2d(16)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=5, stride=2)
+        self.bn2 = nn.BatchNorm2d(32)
+        self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
+        self.bn3 = nn.BatchNorm2d(32)
+
+        self.classifier = nn.Linear(5, output_shape)
+
+
+    def forward(self, x):
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.relu(self.bn3(self.conv3(x)))
+        return self.classifier(x)
+
+
 class DQNAgent(object):
-    def __init__(self, nstates, nactions):
-        self.nstates = nstates
-        self.nactions = nactions
-        self.model = DQN(self.nstates, self.nactions)
+    def __init__(self, screen_dims, env):
+        self.env = env
+        self.state_dims = screen_dims
+        self.state_size = screen_dims**2
+        self.nactions = self.env.action_space.n
+
+        self.state_renderer = CartPoleScreenPreprocessor(self.env)
+        # self.model = FCDQN(self.state_size, self.nactions)
+        # self.model.eval()
+        self.model = CNNDQN(self.state_dims, self.state_dims, self.nactions)
         self.model.eval()
 
-        self.memory_capacity = 2500
+        self.memory_capacity = 50000
         self.memory = deque(maxlen=self.memory_capacity)
 
         self.gamma = 0.95
         self.eps = 1.0
-        self.eps_end = 0.05
-        self.eps_decay = 0.995
+        self.eps_end = 0.1
+        self.eps_decay = 0.999
         self.batch_size = 64
         self.learning_rate = 1e-3
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
+
+
+    def visualize_state(self):
+        current_screen = self.state_renderer.render_current_state(dims=self.state_dims)
+        plt.imshow(current_screen.view(self.state_dims, self.state_dims), cmap='gray')
+        plt.show()
+
+
+    def visualize_state(self, state):
+        plt.imshow(state.view(self.state_dims, self.state_dims), cmap='gray')
+        plt.show()
 
 
     def memorize(self, transition):
         self.memory.append(transition)
 
 
-    def action(self, state):
-        if np.random.rand() <= self.eps:
+    def action(self, state, use_eps=True):
+        if np.random.rand() <= self.eps and use_eps:
             return torch.tensor([[random.randrange(self.nactions)]], dtype=torch.long)
 
         with torch.no_grad():
-            flattened_length = state.shape[1]*state.shape[2]
-            return self.model.predict(state.view(-1, flattened_length))
+            return self.model.predict(state.view(1, -1))
 
 
     def experience_replay(self):
@@ -144,8 +180,8 @@ class DQNAgent(object):
         rewards = torch.cat(rewards)
         next_states = torch.cat(next_states)
 
-        states = states.view(-1, states.shape[1]*states.shape[2])
-        next_states = next_states.view(-1, next_states.shape[1]*next_states.shape[2])
+        states = states.view(self.batch_size, -1)
+        next_states = next_states.view(self.batch_size, -1)
 
         q = self.model(states).gather(1, actions)
         next_max_q = self.model(next_states).detach().max(1)[0]
@@ -160,8 +196,59 @@ class DQNAgent(object):
             self.eps *= self.eps_decay
 
 
-    def model():
-        pass
+    def train(self, steps):
+        current_step = 0
+        current_episode = 1
+
+        while current_step < steps:
+            self.env.reset()
+            previous_screen = self.state_renderer.render_current_state(dims=self.state_dims)
+            current_screen = self.state_renderer.render_current_state(dims=self.state_dims)
+            env_state = current_screen - previous_screen
+
+            for i in itertools.count():
+                action = self.action(env_state)
+                _, reward, done, _ = self.env.step(action.item())
+
+                previous_screen = current_screen
+                current_screen = self.state_renderer.render_current_state(dims=self.state_dims)
+
+                if done:
+                    reward = -10
+                else:
+                    next_state = current_screen - previous_screen
+
+                self.memorize((env_state, action, torch.FloatTensor([reward]), next_state))
+                self.experience_replay()
+
+                env_state = next_state
+
+                if done:
+                    print('Episode {} done after {} iterations, {}/{}, eps: {}'.
+                          format(current_episode, i, current_step+i, steps, self.eps))
+                    current_step += i
+                    current_episode += 1
+                    break
+
+
+    def eval(self, episodes=5, visualize=True):
+        for t in range(episodes):
+            self.env.reset()
+            previous_screen = self.state_renderer.render_current_state(dims=self.state_dims)
+            current_screen = self.state_renderer.render_current_state(dims=self.state_dims)
+            env_state = current_screen - previous_screen
+
+            for i in itertools.count():
+                action = self.action(env_state, use_eps=False)
+                _, reward, done, _ = self.env.step(action.item())
+
+                previous_screen = current_screen
+                current_screen = self.state_renderer.render_current_state(dims=self.state_dims)
+                env_state = current_screen - previous_screen
+
+                if done:
+                    print('Evaluation: done after {} steps'.format(i))
+                    break
 
 
     def save(self, fp):
@@ -170,52 +257,25 @@ class DQNAgent(object):
 
     def load(self, fp):
         self.model.load_state_dict(torch.load(fp))
-        model.eval()
+        self.model.eval()
 
 
 def main():
     env = gym.make(ENV_NAME)
     np.random.seed(123)
     env.seed(123)
+    env.reset()
 
     # Settings.
-    screen_dims = 28
-    nb_actions = env.action_space.n
+    screen_dims = 40
 
-    # Gogo.
-    state_renderer = CartPoleScreenPreprocessor(env)
+    # Run.
+    agent = DQNAgent(screen_dims=screen_dims, env=env)
+    # agent.load('nets/dqn-agent.h5')
+    agent.train(steps=4000)
+    agent.eval()
 
-    # Create a DQN agent.
-    agent = DQNAgent(screen_dims**2, nb_actions)
-
-    # Run the DQN algorithm.
-    # for t in range(50000):
-    while True:
-        env.reset()
-        previous_screen = state_renderer.render_current_state(dims=screen_dims)
-        current_screen = state_renderer.render_current_state(dims=screen_dims)
-        env_state = current_screen - previous_screen
-
-        for i in itertools.count():
-            action = agent.action(env_state)
-            _, reward, done, _ = env.step(action.item())
-
-            previous_screen = current_screen
-            current_screen = state_renderer.render_current_state(dims=screen_dims)
-
-            if done:
-                reward = -10
-            else:
-                next_state = current_screen - previous_screen
-
-            agent.memorize((env_state, action, torch.FloatTensor([reward]), next_state))
-            agent.experience_replay()
-
-            env_state = next_state
-
-            if done:
-                print('Done after {} iterations'.format(i))
-                break
+    # agent.save('nets/dqn-agent.h5')
 
 
 if __name__ == '__main__':
