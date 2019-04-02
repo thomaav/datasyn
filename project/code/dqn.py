@@ -77,6 +77,25 @@ class CartPoleScreenPreprocessor(ScreenPreprocessor):
         return screen[:, :, img_cart_slice]
 
 
+class SimpleDQN(nn.Module):
+    def __init__(self, observation_shape, output_shape):
+        super().__init__()
+
+        self.fc1 = nn.Linear(observation_shape, 24)
+        self.fc2 = nn.Linear(24, 24)
+        self.classifier = nn.Linear(24, output_shape)
+
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        return self.classifier(x)
+
+
+    def predict(self, x):
+        return self(x).max(1)[1].view(1, 1)
+
+
 class FCDQN(nn.Module):
     def __init__(self, observation_shape, output_shape):
         super().__init__()
@@ -108,14 +127,20 @@ class CNNDQN(nn.Module):
         self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
         self.bn3 = nn.BatchNorm2d(32)
 
-        self.classifier = nn.Linear(5, output_shape)
+        self.fc1 = nn.Linear(128, 256)
+        self.classifier = nn.Linear(256, output_shape)
 
 
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
+        x = F.relu(self.fc1(x.view(x.size(0), -1)))
         return self.classifier(x)
+
+
+    def predict(self, x):
+        return self(x).max(1)[1].view(1, 1)
 
 
 class DQNAgent(object):
@@ -130,6 +155,8 @@ class DQNAgent(object):
         # self.model.eval()
         self.model = CNNDQN(self.state_dims, self.state_dims, self.nactions)
         self.model.eval()
+        # self.model = SimpleDQN(self.state_size, self.nactions)
+        # self.model.eval()
 
         self.memory_capacity = 50000
         self.memory = deque(maxlen=self.memory_capacity)
@@ -141,6 +168,13 @@ class DQNAgent(object):
         self.batch_size = 64
         self.learning_rate = 1e-3
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
+
+
+    def view(self, batch_size):
+        if type(self.model) == FCDQN or type(self.model) == SimpleDQN:
+            return (batch_size, -1)
+        elif type(self.model) == CNNDQN:
+            return (batch_size, 1, self.state_dims, self.state_dims)
 
 
     def visualize_state(self):
@@ -163,7 +197,7 @@ class DQNAgent(object):
             return torch.tensor([[random.randrange(self.nactions)]], dtype=torch.long)
 
         with torch.no_grad():
-            return self.model.predict(state.view(1, -1))
+            return self.model.predict(state.view(*self.view(batch_size=1)))
 
 
     def experience_replay(self):
@@ -180,8 +214,9 @@ class DQNAgent(object):
         rewards = torch.cat(rewards)
         next_states = torch.cat(next_states)
 
-        states = states.view(self.batch_size, -1)
-        next_states = next_states.view(self.batch_size, -1)
+        view_shape = self.view(64)
+        states = states.view(*view_shape)
+        next_states = next_states.view(*view_shape)
 
         q = self.model(states).gather(1, actions)
         next_max_q = self.model(next_states).detach().max(1)[0]
@@ -224,14 +259,15 @@ class DQNAgent(object):
                 env_state = next_state
 
                 if done:
-                    print('Episode {} done after {} iterations, {}/{}, eps: {}'.
-                          format(current_episode, i, current_step+i, steps, self.eps))
+                    print('Episode {} done after {} iterations, {}/{}, eps: {}, memory: {}'.
+                          format(current_episode, i, current_step+i,
+                                 steps, self.eps, len(self.memory)))
                     current_step += i
                     current_episode += 1
                     break
 
 
-    def eval(self, episodes=5, visualize=True):
+    def test(self, episodes=5, visualize=True):
         for t in range(episodes):
             self.env.reset()
             previous_screen = self.state_renderer.render_current_state(dims=self.state_dims)
@@ -272,8 +308,8 @@ def main():
     # Run.
     agent = DQNAgent(screen_dims=screen_dims, env=env)
     # agent.load('nets/dqn-agent.h5')
-    agent.train(steps=4000)
-    agent.eval()
+    agent.train(steps=50000)
+    agent.test()
 
     # agent.save('nets/dqn-agent.h5')
 
