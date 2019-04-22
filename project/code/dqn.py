@@ -334,17 +334,18 @@ class DQNAgent(object):
     def test(self, episodes=5, visualize=True):
         for t in range(episodes):
             self.env.reset()
-            previous_screen = self.state_renderer.render_current_state(dims=self.state_dims)
-            current_screen = self.state_renderer.render_current_state(dims=self.state_dims)
-            env_state = current_screen - previous_screen
+
+            first_state = self.state_renderer.render_current_state(dims=self.state_dims)
+            env_state = self.stack_frames(first_state, reset=True)
 
             for i in itertools.count():
                 action = self.action(env_state, use_eps=False)
                 _, reward, done, _ = self.env.step(action.item())
 
-                previous_screen = current_screen
-                current_screen = self.state_renderer.render_current_state(dims=self.state_dims)
-                env_state = current_screen - previous_screen
+                self.env.render()
+
+                next_state = self.state_renderer.render_current_state(dims=self.state_dims)
+                env_state = self.stack_frames(next_state, reset=False)
 
                 if done:
                     print('Evaluation: done after {} steps'.format(i))
@@ -356,7 +357,7 @@ class DQNAgent(object):
 
 
     def load(self, fp):
-        self.model.load_state_dict(torch.load(fp))
+        self.model.load_state_dict(torch.load(fp, map_location='cpu'))
         self.model.eval()
 
 
@@ -379,18 +380,22 @@ def main():
     # Settings.
     screen_dims = 84
 
-    # Run.
+    # # Run.
+    # agent = DQNAgent(screen_dims=screen_dims, env=env)
+    # # agent.load('nets/dqn-agent.h5')
+    # agent.train(steps=500000, viz=False)
+    # agent.test()
+
+    # # agent.save('nets/dqn-agent.h5')
+
+    # plt.ylabel('Episode reward')
+    # plt.xlabel('Training episodes')
+    # plt.plot(agent.rewards)
+    # plt.show()
+
     agent = DQNAgent(screen_dims=screen_dims, env=env)
-    # agent.load('nets/dqn-agent.h5')
-    agent.train(steps=500000, viz=False)
+    agent.load('dqn-agent.h5')
     agent.test()
-
-    # agent.save('nets/dqn-agent.h5')
-
-    plt.ylabel('Episode reward')
-    plt.xlabel('Training episodes')
-    plt.plot(agent.rewards)
-    plt.show()
 
 
 if __name__ == '__main__':
