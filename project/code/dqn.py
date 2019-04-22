@@ -15,9 +15,7 @@ import torchvision.transforms as T
 import torch.optim as optim
 
 
-# ENV_NAME = 'CartPole-v0'
-# ENV_NAME = 'CartPole-v1'
-# ENV_NAME = 'MountainCar-v0'
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class ScreenPreprocessor(object):
@@ -93,7 +91,7 @@ class SpaceInvadersScreenPreprocessor(ScreenPreprocessor):
         screen = np.reshape(screen, (84, 84, 1))
 
         screen = torch.from_numpy(screen).type(torch.FloatTensor)
-        return screen
+        return screen.to(DEVICE)
 
 
     def scale_screen(self, screen):
@@ -185,7 +183,7 @@ class DQNAgent(object):
 
         # self.model = FCDQN(self.state_size, self.nactions)
         # self.model.eval()
-        self.model = CNNDQN(self.state_dims, self.state_dims, self.stack_size, self.nactions)
+        self.model = CNNDQN(self.state_dims, self.state_dims, self.stack_size, self.nactions).to(DEVICE)
         self.model.eval()
         # self.model = SimpleDQN(self.state_size, self.nactions)
         # self.model.eval()
@@ -241,7 +239,7 @@ class DQNAgent(object):
 
     def action(self, state, use_eps=True):
         if np.random.rand() <= self.eps and use_eps:
-            return torch.tensor([[random.randrange(self.nactions)]], dtype=torch.long)
+            return torch.tensor([[random.randrange(self.nactions)]], device=DEVICE, dtype=torch.long)
 
         with torch.no_grad():
             return self.model.predict(state.view(*self.view(batch_size=1)))
@@ -291,8 +289,12 @@ class DQNAgent(object):
             env_state = self.stack_frames(first_state, reset=True)
 
             for i in itertools.count():
+                if i % 30 == 0:
+                    print('Another 30 iterations over')
+
                 action = self.action(env_state)
                 _, reward, done, _ = self.env.step(action.item())
+                reward = torch.tensor([reward], device=DEVICE)
                 total_reward += reward
                 decay_step += 1
 
