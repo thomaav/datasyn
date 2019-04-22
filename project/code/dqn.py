@@ -174,7 +174,7 @@ class DQNAgent(object):
         self.state_renderer = SpaceInvadersScreenPreprocessor(self.env)
         # self.state_renderer = CartPoleScreenPreprocessor(self.env)
 
-        self.memory_capacity = 1000000
+        self.memory_capacity = 70000
         self.memory = deque(maxlen=self.memory_capacity)
 
         self.stack_size = 4
