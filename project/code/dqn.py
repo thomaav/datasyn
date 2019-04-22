@@ -2,6 +2,7 @@ import itertools
 import random
 import numpy as np
 import gym
+import cv2
 from collections import deque
 from PIL import Image
 from matplotlib import pyplot as plt
@@ -14,8 +15,9 @@ import torch.optim as optim
 
 
 # ENV_NAME = 'CartPole-v0'
-ENV_NAME = 'CartPole-v1'
+# ENV_NAME = 'CartPole-v1'
 # ENV_NAME = 'MountainCar-v0'
+ENV_NAME = 'SpaceInvaders-v0'
 
 
 class ScreenPreprocessor(object):
@@ -77,6 +79,27 @@ class CartPoleScreenPreprocessor(ScreenPreprocessor):
         return screen[:, :, img_cart_slice]
 
 
+class SpaceInvadersScreenPreprocessor(ScreenPreprocessor):
+    def __init__(self, env):
+        super().__init__(env)
+
+
+    # http://www.pinchofintelligence.com/openai-gym-part-3-playing-space-invaders-deep-reinforcement-learning/
+    def render_current_state(self, dims=84):
+        screen = self.env.render(mode='rgb_array')
+        screen = cv2.cvtColor(cv2.resize(screen, (84, 110)), cv2.COLOR_BGR2GRAY)
+        screen = screen[26:110,:]
+        _, screen = cv2.threshold(screen, 1, 255, cv2.THRESH_BINARY)
+        screen = np.reshape(screen, (84, 84, 1))
+
+        screen = torch.from_numpy(screen).type(torch.FloatTensor)
+        return screen
+
+
+    def scale_screen(self, screen):
+        pass
+
+
 class SimpleDQN(nn.Module):
     def __init__(self, observation_shape, output_shape):
         super().__init__()
@@ -127,7 +150,7 @@ class CNNDQN(nn.Module):
         self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
         self.bn3 = nn.BatchNorm2d(32)
 
-        self.fc1 = nn.Linear(128, 256)
+        self.fc1 = nn.Linear(32*7*7, 256)
         self.classifier = nn.Linear(256, output_shape)
 
 
@@ -150,7 +173,8 @@ class DQNAgent(object):
         self.state_size = screen_dims**2
         self.nactions = self.env.action_space.n
 
-        self.state_renderer = CartPoleScreenPreprocessor(self.env)
+        self.state_renderer = SpaceInvadersScreenPreprocessor(self.env)
+
         # self.model = FCDQN(self.state_size, self.nactions)
         # self.model.eval()
         self.model = CNNDQN(self.state_dims, self.state_dims, self.nactions)
@@ -161,6 +185,10 @@ class DQNAgent(object):
         self.memory_capacity = 50000
         self.memory = deque(maxlen=self.memory_capacity)
 
+        self.stack_size = 4
+        self.stacked_frames = deque([np.zeros((self.state_dims, self.state_dims), dtype=np.int)
+                                     for i in range(self.stack_size)], maxlen=self.stack_size)
+
         self.gamma = 0.95
         self.eps = 1.0
         self.eps_end = 0.1
@@ -168,6 +196,10 @@ class DQNAgent(object):
         self.batch_size = 64
         self.learning_rate = 1e-3
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
+
+        # Metrics.
+        self.rewards = []
+        self.qs = []
 
 
     def view(self, batch_size):
@@ -179,13 +211,26 @@ class DQNAgent(object):
 
     def visualize_state(self):
         current_screen = self.state_renderer.render_current_state(dims=self.state_dims)
-        plt.imshow(current_screen.view(self.state_dims, self.state_dims), cmap='gray')
+        plt.imshow(current_screen.squeeze(), cmap='gray')
         plt.show()
 
 
-    def visualize_state(self, state):
-        plt.imshow(state.view(self.state_dims, self.state_dims), cmap='gray')
+    def _visualize_state(self, state):
+        plt.imshow(state.squeeze(), cmap='gray')
         plt.show()
+
+
+    def stack_frames(self, state, reset=False):
+        if reset:
+            self.stacked_frames = deque([np.zeros((self.state_dims, self.state_dims), dtype=np.int)
+                                         for i in range(self.stack_size)], maxlen=self.stack_size)
+
+            for i in range(self.stack_size):
+                self.stacked_frames.append(state)
+        else:
+            self.stacked_frames.append(state)
+
+        return np.stack(self.stacked_frames, axis=2)
 
 
     def memorize(self, transition):
@@ -204,8 +249,6 @@ class DQNAgent(object):
         if len(self.memory) < self.batch_size:
             return
 
-        # Consider turning this into a list to avoid the quadratic
-        # time random.sample?
         batch = random.sample(self.memory, self.batch_size)
         states, actions, rewards, next_states = zip(*batch)
 
@@ -219,10 +262,10 @@ class DQNAgent(object):
         next_states = next_states.view(*view_shape)
 
         q = self.model(states).gather(1, actions)
-        next_max_q = self.model(next_states).detach().max(1)[0]
+        next_max_q = self.model(next_states).max(1)[0].detach()
         expected_q = rewards + (self.gamma*next_max_q)
 
-        loss = F.mse_loss(q.squeeze(), expected_q)
+        loss = F.mse_loss(q.squeeze(), expected_q.unsqueeze(1))
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -231,25 +274,33 @@ class DQNAgent(object):
             self.eps *= self.eps_decay
 
 
-    def train(self, steps):
+    def train(self, steps, viz=False):
         current_step = 0
         current_episode = 1
 
         while current_step < steps:
             self.env.reset()
+
             previous_screen = self.state_renderer.render_current_state(dims=self.state_dims)
             current_screen = self.state_renderer.render_current_state(dims=self.state_dims)
             env_state = current_screen - previous_screen
 
+            total_reward = 0
+            self.stack_frames(env_state, reset=True)
+
             for i in itertools.count():
                 action = self.action(env_state)
                 _, reward, done, _ = self.env.step(action.item())
+                total_reward += reward
 
                 previous_screen = current_screen
                 current_screen = self.state_renderer.render_current_state(dims=self.state_dims)
 
+                if viz:
+                    self.env.render()
+
                 if done:
-                    reward = -10
+                    reward = 0
                 else:
                     next_state = current_screen - previous_screen
 
@@ -257,13 +308,15 @@ class DQNAgent(object):
                 self.experience_replay()
 
                 env_state = next_state
+                print(self.stack_frames(env_state, reset=False).shape)
 
                 if done:
-                    print('Episode {} done after {} iterations, {}/{}, eps: {}, memory: {}'.
-                          format(current_episode, i, current_step+i,
+                    print('Episode {} done after with {} rewards, {}/{}, eps: {}, memory: {}'.
+                          format(current_episode, total_reward, current_step+i,
                                  steps, self.eps, len(self.memory)))
                     current_step += i
                     current_episode += 1
+                    self.rewards.append(total_reward)
                     break
 
 
@@ -297,21 +350,33 @@ class DQNAgent(object):
 
 
 def main():
+    # CartPole
+    # env = gym.make(ENV_NAME).unwrapped
+    # np.random.seed(123)
+    # env.seed(123)
+    # env.reset()
+
+    # SpaceInvaders
     env = gym.make(ENV_NAME)
     np.random.seed(123)
     env.seed(123)
     env.reset()
 
     # Settings.
-    screen_dims = 40
+    screen_dims = 84
 
     # Run.
     agent = DQNAgent(screen_dims=screen_dims, env=env)
     # agent.load('nets/dqn-agent.h5')
-    agent.train(steps=50000)
+    agent.train(steps=50000, viz=True)
     agent.test()
 
     # agent.save('nets/dqn-agent.h5')
+
+    plt.ylabel('Episode reward')
+    plt.xlabel('Training episodes')
+    plt.plot(agent.rewards)
+    plt.show()
 
 
 if __name__ == '__main__':
