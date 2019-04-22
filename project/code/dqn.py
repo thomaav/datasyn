@@ -87,7 +87,6 @@ class SpaceInvadersScreenPreprocessor(ScreenPreprocessor):
         screen = self.env.render(mode='rgb_array')
         screen = cv2.cvtColor(cv2.resize(screen, (84, 110)), cv2.COLOR_BGR2GRAY)
         screen = screen[26:110,:]
-        _, screen = cv2.threshold(screen, 1, 255, cv2.THRESH_BINARY)
         screen = np.reshape(screen, (84, 84, 1))
 
         screen = torch.from_numpy(screen).type(torch.FloatTensor)
@@ -310,6 +309,7 @@ class DQNAgent(object):
                 else:
                     # We already get the state above. Don't do this.
                     next_state = self.state_renderer.render_current_state(dims=self.state_dims)
+                    # self._visualize_state(next_state)
                     next_env_state = self.stack_frames(next_state, reset=False)
 
                 self.memorize((env_state, action, reward, next_env_state))
@@ -363,7 +363,7 @@ class DQNAgent(object):
 
 def main():
     # ENV_NAME = 'CartPole-v1'
-    ENV_NAME = 'SpaceInvaders-v0'
+    ENV_NAME = 'Breakout-v0'
 
     # CartPole
     env = gym.make(ENV_NAME).unwrapped
@@ -380,22 +380,22 @@ def main():
     # Settings.
     screen_dims = 84
 
-    # # Run.
-    # agent = DQNAgent(screen_dims=screen_dims, env=env)
-    # # agent.load('nets/dqn-agent.h5')
-    # agent.train(steps=500000, viz=False)
-    # agent.test()
+    # Run.
+    agent = DQNAgent(screen_dims=screen_dims, env=env)
+    # agent.load('nets/dqn-agent.h5')
+    agent.train(steps=500000, viz=True)
+    agent.test()
 
-    # # agent.save('nets/dqn-agent.h5')
+    # agent.save('nets/dqn-agent.h5')
 
     # plt.ylabel('Episode reward')
     # plt.xlabel('Training episodes')
     # plt.plot(agent.rewards)
     # plt.show()
 
-    agent = DQNAgent(screen_dims=screen_dims, env=env)
-    agent.load('dqn-agent.h5')
-    agent.test()
+    # agent = DQNAgent(screen_dims=screen_dims, env=env)
+    # agent.load('dqn-agent.h5')
+    # agent.test()
 
 
 if __name__ == '__main__':
