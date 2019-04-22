@@ -192,7 +192,7 @@ class DQNAgent(object):
         self.eps = 1.0
         self.eps_start = 1.0
         self.eps_end = 0.1
-        self.eps_decay_rate = 0.001
+        self.eps_decay_rate = 0.0001
         self.batch_size = 64
         self.learning_rate = 1e-3
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
@@ -230,7 +230,7 @@ class DQNAgent(object):
         else:
             self.stacked_frames.append(state)
 
-        return torch.from_numpy(np.stack(self.stacked_frames, axis=2).squeeze()).type(torch.FloatTensor)
+        return torch.stack(list(self.stacked_frames)).squeeze().to(DEVICE)
 
 
     def memorize(self, transition):
@@ -251,6 +251,10 @@ class DQNAgent(object):
 
         batch = random.sample(self.memory, self.batch_size)
         states, actions, rewards, next_states = zip(*batch)
+
+        for reward in rewards:
+            if not isinstance(reward, torch.Tensor):
+                print(reward)
 
         states = torch.cat(states)
         actions = torch.cat(actions)
@@ -295,20 +299,20 @@ class DQNAgent(object):
                 action = self.action(env_state)
                 _, reward, done, _ = self.env.step(action.item())
                 reward = torch.tensor([reward], device=DEVICE)
-                total_reward += reward
+                total_reward += reward[0]
                 decay_step += 1
 
                 if viz:
                     self.env.render()
 
                 if done:
-                    reward = 0
+                    reward = torch.tensor([reward], device=DEVICE)
                 else:
                     # We already get the state above. Don't do this.
                     next_state = self.state_renderer.render_current_state(dims=self.state_dims)
                     next_env_state = self.stack_frames(next_state, reset=False)
 
-                self.memorize((env_state, action, torch.FloatTensor([reward]), next_env_state))
+                self.memorize((env_state, action, reward, next_env_state))
                 self.experience_replay(decay_step)
 
                 env_state = next_env_state
@@ -378,7 +382,7 @@ def main():
     # Run.
     agent = DQNAgent(screen_dims=screen_dims, env=env)
     # agent.load('nets/dqn-agent.h5')
-    agent.train(steps=50000, viz=False)
+    agent.train(steps=500000, viz=False)
     agent.test()
 
     # agent.save('nets/dqn-agent.h5')
