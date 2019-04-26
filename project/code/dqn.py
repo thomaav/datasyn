@@ -269,7 +269,7 @@ class DQNAgent(object):
 
 
     def action(self, state, use_eps=True):
-        if np.random.rand() <= self.eps and use_eps:
+        if (np.random.rand() <= self.eps) and use_eps:
             return torch.tensor([[random.randrange(self.nactions)]], device=DEVICE, dtype=torch.long)
 
         with torch.no_grad():
@@ -305,7 +305,7 @@ class DQNAgent(object):
         self.optimizer.zero_grad()
         loss.backward()
         for param in self.policy_net.parameters():
-            param.grad.data.clamp(-1, 1)
+            param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
 
         if self.eps > self.eps_end:
@@ -393,8 +393,8 @@ class DQNAgent(object):
 
 
     def load(self, fp):
-        self.policy_net.load_state_dict(torch.load(fp, map_location='cpu'))
-        self.policy_net.eval()
+        self.policy_net.load_state_dict(torch.load(fp, map_location=DEVICE))
+        self.target_net.load_state_dict(self.policy_net.state_dict())
 
 
 def main():
@@ -403,9 +403,6 @@ def main():
     ENV_NAME = 'Pong-v0'
 
     env = gym.make(ENV_NAME)
-    np.random.seed(123)
-    env.seed(123)
-    env.reset()
 
     # Settings.
     screen_dims = 84
