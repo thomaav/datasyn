@@ -199,24 +199,32 @@ class DQNAgent(object):
 
         self.memory_capacity = 70000
         self.memory = deque(maxlen=self.memory_capacity)
-        self.learning_size_threshold = 1000
+        self.initial_memory = 10000
 
         self.stack_size = 4
         self.stacked_frames = deque([np.zeros((self.state_dims, self.state_dims), dtype=np.int)
                                      for i in range(self.stack_size)], maxlen=self.stack_size)
 
+
+        # Old.
         # self.model = FCDQN(self.state_size, self.nactions)
-        self.model = CNNDQN(self.state_dims, self.state_dims, self.stack_size, self.nactions).to(DEVICE)
         # self.model = SimpleDQN(self.state_size, self.nactions)
 
-        self.gamma = 0.999
+        self.policy_net = CNNDQN(self.state_dims, self.state_dims,
+                                 self.stack_size, self.nactions).to(DEVICE)
+        self.target_net = CNNDQN(self.state_dims, self.state_dims,
+                                 self.stack_size, self.nactions).to(DEVICE)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+        self.target_update = 1000
+
+        self.gamma = 0.99
         self.eps = 1.0
         self.eps_start = 1.0
         self.eps_end = 0.1
-        self.eps_decay_rate = 0.0005
-        self.batch_size = 64
-        self.learning_rate = 0.001
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
+        self.eps_decay_rate = 0.00001
+        self.batch_size = 32
+        self.learning_rate = 0.0001
+        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.learning_rate)
 
         # Metrics.
         self.rewards = []
@@ -224,9 +232,9 @@ class DQNAgent(object):
 
 
     def view(self, batch_size):
-        if type(self.model) == FCDQN or type(self.model) == SimpleDQN:
+        if type(self.policy_net) == FCDQN or type(self.policy_net) == SimpleDQN:
             return (batch_size, -1)
-        elif type(self.model) == CNNDQN:
+        elif type(self.policy_net) == CNNDQN:
             return (batch_size, self.stack_size, self.state_dims, self.state_dims)
 
 
@@ -263,11 +271,11 @@ class DQNAgent(object):
             return torch.tensor([[random.randrange(self.nactions)]], device=DEVICE, dtype=torch.long)
 
         with torch.no_grad():
-            return self.model.predict(state.view(*self.view(batch_size=1)))
+            return self.policy_net.predict(state.view(*self.view(batch_size=1)))
 
 
     def experience_replay(self, decay_step=0):
-        if len(self.memory) < self.batch_size:
+        if len(self.memory) < self.initial_memory:
             return
 
         batch = random.sample(self.memory, self.batch_size)
@@ -276,21 +284,27 @@ class DQNAgent(object):
         states = torch.cat(states)
         actions = torch.cat(actions)
         rewards = torch.cat(rewards)
-        next_states = torch.cat(next_states)
+        non_final_next_states = torch.cat([s for s in next_states if s is not None])
+        non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
+                                                next_states)), device=DEVICE, dtype=torch.uint8)
 
-        view_shape = self.view(self.batch_size)
-        states = states.view(*view_shape)
-        next_states = next_states.view(*view_shape)
+        states_view_shape = self.view(self.batch_size)
+        states = states.view(*states_view_shape)
+        non_final_states_view_shape = self.view(non_final_mask.shape[0])
+        non_final_next_states = non_final_next_states.view(*non_final_states_view_shape)
 
-        q = self.model(states).gather(1, actions)
-        next_max_q = self.model(next_states).detach().max(1)[0]
+        q = self.policy_net(states).gather(1, actions)
+
+        next_max_q = torch.zeros(self.batch_size, device=DEVICE)
+        next_max_q[non_final_mask] = self.target_net(non_final_next_states).max(1)[0].detach()
+
         expected_q = rewards + (self.gamma*next_max_q)
 
-        loss = F.mse_loss(q.squeeze(), expected_q)
+        loss = F.smooth_l1_loss(q.squeeze(), expected_q)
         self.optimizer.zero_grad()
         loss.backward()
-        # for param in self.model.parameters():
-        #     param.grad.data.clamp(-1, 1)
+        for param in self.policy_net.parameters():
+            param.grad.data.clamp(-1, 1)
         self.optimizer.step()
 
         if self.eps > self.eps_end:
@@ -310,8 +324,8 @@ class DQNAgent(object):
             env_state = self.stack_frames(first_state, reset=True)
 
             for i in itertools.count():
-                # if i % 30 == 0:
-                #     print('Another 30 iterations over')
+                if i % 30 == 0:
+                    print('Another 30 iterations over')
 
                 action = self.action(env_state)
                 _next_state, reward, done, _ = self.env.step(action.item())
@@ -322,17 +336,20 @@ class DQNAgent(object):
                 if viz:
                     self.env.render()
 
-                if done:
-                    reward = -1
-
                 # We already get the state above. Don't do this.
                 next_state = self.state_renderer.render_state(state=_next_state, dims=self.state_dims)
                 next_env_state = self.stack_frames(next_state, reset=False)
 
-                self.memorize((env_state, action, torch.FloatTensor([reward]), next_env_state))
+                if done:
+                    next_env_state = None
+
+                self.memorize((env_state, action, torch.FloatTensor([reward], device=DEVICE), next_env_state))
                 self.experience_replay(decay_step)
 
                 env_state = next_env_state
+
+                if (current_step + i) % self.target_update == 0:
+                    self.target_net.load_state_dict(self.policy_net.state_dict())
 
                 if done:
                     print('Episode {} done after with {} rewards, {}/{}, eps: {}, memory: {}'.
@@ -351,18 +368,18 @@ class DQNAgent(object):
 
     def test(self, episodes=5, visualize=True):
         for t in range(episodes):
-            self.env.reset()
+            _first_state = self.env.reset()
+            first_state = self.state_renderer.render_state(state=_first_state, dims=self.state_dims)
 
-            first_state = self.state_renderer.render_current_state(dims=self.state_dims)
             env_state = self.stack_frames(first_state, reset=True)
 
             for i in itertools.count():
                 action = self.action(env_state, use_eps=False)
-                _, reward, done, _ = self.env.step(action.item())
+                _next_state, reward, done, _ = self.env.step(action.item())
 
                 self.env.render()
 
-                next_state = self.state_renderer.render_current_state(dims=self.state_dims)
+                next_state = self.state_renderer.render_state(state=_next_state, dims=self.state_dims)
                 env_state = self.stack_frames(next_state, reset=False)
 
                 if done:
@@ -371,18 +388,18 @@ class DQNAgent(object):
 
 
     def save(self, fp):
-        torch.save(self.model.state_dict(), fp)
+        torch.save(self.policy_net.state_dict(), fp)
 
 
     def load(self, fp):
-        self.model.load_state_dict(torch.load(fp, map_location='cpu'))
-        self.model.eval()
+        self.policy_net.load_state_dict(torch.load(fp, map_location='cpu'))
+        self.policy_net.eval()
 
 
 def main():
     # ENV_NAME = 'CartPole-v1'
     # ENV_NAME = 'Breakout-v4'
-    ENV_NAME = 'Pong-v0'
+    ENV_NAME = 'PongNoFrameskip-v4'
 
     env = gym.make(ENV_NAME)
     np.random.seed(123)
