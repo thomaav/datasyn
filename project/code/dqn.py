@@ -193,7 +193,7 @@ class DQNAgent(object):
         self.eps_end = 0.1
         self.eps_decay_rate = 0.0001
         self.batch_size = 64
-        self.learning_rate = 1e-3
+        self.learning_rate = 1e-4
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
 
         # Metrics.
@@ -326,7 +326,8 @@ class DQNAgent(object):
                     self.rewards.append(total_reward)
 
                     # Save weights.
-                    self.save('nets/' + datetime.now().strftime('%d-%m-%Y-%H:%M:%S'))
+                    if current_episode % 20 == 0:
+                        self.save('nets/' + datetime.now().strftime('%d-%m-%Y-%H:%M:%S'))
 
                     break
 
@@ -363,7 +364,7 @@ class DQNAgent(object):
 
 def main():
     # ENV_NAME = 'CartPole-v1'
-    ENV_NAME = 'Breakout-v0'
+    ENV_NAME = 'Breakout-v4'
 
     # CartPole
     env = gym.make(ENV_NAME).unwrapped
@@ -383,7 +384,7 @@ def main():
     # Run.
     agent = DQNAgent(screen_dims=screen_dims, env=env)
     # agent.load('nets/dqn-agent.h5')
-    agent.train(steps=500000, viz=True)
+    agent.train(steps=5000000, viz=True)
     agent.test()
 
     # agent.save('nets/dqn-agent.h5')
