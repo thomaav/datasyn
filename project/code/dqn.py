@@ -77,6 +77,16 @@ class CartPoleScreenPreprocessor(ScreenPreprocessor):
         return screen[:, :, img_cart_slice]
 
 
+class SimpleCartPoleScreenPreprocessor(ScreenPreprocessor):
+    def __init__(self, env):
+        super().__init__(env)
+
+
+    def render_state(self, state):
+        state = torch.FloatTensor([state]).view(1, -1)
+        return state.to(DEVICE)
+
+
 class SpaceInvadersScreenPreprocessor(ScreenPreprocessor):
     def __init__(self, env):
         super().__init__(env)
@@ -101,14 +111,12 @@ class SimpleDQN(nn.Module):
     def __init__(self, observation_shape, output_shape):
         super().__init__()
 
-        self.fc1 = nn.Linear(observation_shape, 24)
-        self.fc2 = nn.Linear(24, 24)
-        self.classifier = nn.Linear(24, output_shape)
+        self.fc1 = nn.Linear(observation_shape, 256)
+        self.classifier = nn.Linear(256, output_shape)
 
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
         return self.classifier(x)
 
 
@@ -165,35 +173,39 @@ class CNNDQN(nn.Module):
 
 class DQNAgent(object):
     def __init__(self, screen_dims, env):
+        # self.env = env
+        # self.state_dims = screen_dims
+        # self.state_size = screen_dims**2
+        # self.nactions = self.env.action_space.n
+
         self.env = env
-        self.state_dims = screen_dims
-        self.state_size = screen_dims**2
+        self.state_dims = 4
+        self.state_size = 4
         self.nactions = self.env.action_space.n
 
-        self.state_renderer = SpaceInvadersScreenPreprocessor(self.env)
+        # self.state_renderer = SpaceInvadersScreenPreprocessor(self.env)
         # self.state_renderer = CartPoleScreenPreprocessor(self.env)
+        self.state_renderer = SimpleCartPoleScreenPreprocessor(self.env)
 
         self.memory_capacity = 70000
         self.memory = deque(maxlen=self.memory_capacity)
+        self.learning_size_threshold = 1000
 
-        self.stack_size = 4
+        self.stack_size = 1
         self.stacked_frames = deque([np.zeros((self.state_dims, self.state_dims), dtype=np.int)
                                      for i in range(self.stack_size)], maxlen=self.stack_size)
 
         # self.model = FCDQN(self.state_size, self.nactions)
-        # self.model.eval()
-        self.model = CNNDQN(self.state_dims, self.state_dims, self.stack_size, self.nactions).to(DEVICE)
-        self.model.eval()
-        # self.model = SimpleDQN(self.state_size, self.nactions)
-        # self.model.eval()
+        # self.model = CNNDQN(self.state_dims, self.state_dims, self.stack_size, self.nactions).to(DEVICE)
+        self.model = SimpleDQN(self.state_size, self.nactions)
 
-        self.gamma = 0.95
+        self.gamma = 0.8
         self.eps = 1.0
         self.eps_start = 1.0
         self.eps_end = 0.1
-        self.eps_decay_rate = 0.0001
+        self.eps_decay_rate = 0.001
         self.batch_size = 64
-        self.learning_rate = 1e-4
+        self.learning_rate = 0.001
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
 
         # Metrics.
@@ -251,10 +263,6 @@ class DQNAgent(object):
         batch = random.sample(self.memory, self.batch_size)
         states, actions, rewards, next_states = zip(*batch)
 
-        for reward in rewards:
-            if not isinstance(reward, torch.Tensor):
-                print(reward)
-
         states = torch.cat(states)
         actions = torch.cat(actions)
         rewards = torch.cat(rewards)
@@ -265,14 +273,14 @@ class DQNAgent(object):
         next_states = next_states.view(*view_shape)
 
         q = self.model(states).gather(1, actions)
-        next_max_q = self.model(next_states).max(1)[0].detach()
+        next_max_q = self.model(next_states).detach().max(1)[0]
         expected_q = rewards + (self.gamma*next_max_q)
 
-        loss = F.mse_loss(q.squeeze(), expected_q.unsqueeze(1))
+        loss = F.mse_loss(q.squeeze(), expected_q)
         self.optimizer.zero_grad()
         loss.backward()
-        for param in self.model.parameters():
-            param.grad.data.clamp(-1, 1)
+        # for param in self.model.parameters():
+        #     param.grad.data.clamp(-1, 1)
         self.optimizer.step()
 
         if self.eps > self.eps_end:
@@ -285,8 +293,8 @@ class DQNAgent(object):
         decay_step = 0
 
         while current_step < steps:
-            self.env.reset()
-            first_state = self.state_renderer.render_current_state(dims=self.state_dims)
+            _first_state = self.env.reset()
+            first_state = self.state_renderer.render_state(_first_state)
 
             total_reward = 0
             env_state = self.stack_frames(first_state, reset=True)
@@ -296,23 +304,22 @@ class DQNAgent(object):
                     print('Another 30 iterations over')
 
                 action = self.action(env_state)
-                _, reward, done, _ = self.env.step(action.item())
-                reward = torch.tensor([reward], device=DEVICE)
-                total_reward += reward[0]
+                _next_state, reward, done, _ = self.env.step(action.item())
+
+                total_reward += reward
                 decay_step += 1
 
                 if viz:
                     self.env.render()
 
                 if done:
-                    reward = torch.tensor([reward], device=DEVICE)
-                else:
-                    # We already get the state above. Don't do this.
-                    next_state = self.state_renderer.render_current_state(dims=self.state_dims)
-                    # self._visualize_state(next_state)
-                    next_env_state = self.stack_frames(next_state, reset=False)
+                    reward = -1
 
-                self.memorize((env_state, action, reward, next_env_state))
+                # We already get the state above. Don't do this.
+                next_state = self.state_renderer.render_state(_next_state)
+                next_env_state = self.stack_frames(next_state, reset=False)
+
+                self.memorize((env_state, action, torch.FloatTensor([reward]), next_env_state))
                 self.experience_replay(decay_step)
 
                 env_state = next_env_state
@@ -363,20 +370,13 @@ class DQNAgent(object):
 
 
 def main():
-    # ENV_NAME = 'CartPole-v1'
-    ENV_NAME = 'Breakout-v4'
+    ENV_NAME = 'CartPole-v1'
+    # ENV_NAME = 'Breakout-v4'
 
-    # CartPole
-    env = gym.make(ENV_NAME).unwrapped
+    env = gym.make(ENV_NAME)
     np.random.seed(123)
     env.seed(123)
     env.reset()
-
-    # SpaceInvaders
-    # env = gym.make(ENV_NAME)
-    # np.random.seed(123)
-    # env.seed(123)
-    # env.reset()
 
     # Settings.
     screen_dims = 84
