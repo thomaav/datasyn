@@ -103,6 +103,16 @@ class SpaceInvadersScreenPreprocessor(ScreenPreprocessor):
         return screen.to(DEVICE)
 
 
+    def render_state(self, state, dims):
+        screen = state
+        screen = cv2.cvtColor(cv2.resize(screen, (84, 110)), cv2.COLOR_BGR2GRAY)
+        screen = screen[26:110,:]
+        screen = np.reshape(screen, (84, 84, 1))
+
+        screen = torch.from_numpy(screen).type(torch.FloatTensor)
+        return screen.to(DEVICE)
+
+
     def scale_screen(self, screen):
         pass
 
@@ -155,7 +165,7 @@ class CNNDQN(nn.Module):
         self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
         self.bn3 = nn.BatchNorm2d(32)
 
-        self.fc1 = nn.Linear(32*2*2, 256)
+        self.fc1 = nn.Linear(32*7*7, 256)
         self.classifier = nn.Linear(256, output_shape)
 
 
@@ -183,8 +193,8 @@ class DQNAgent(object):
         self.state_size = screen_dims**2
         self.nactions = self.env.action_space.n
 
-        # self.state_renderer = SpaceInvadersScreenPreprocessor(self.env)
-        self.state_renderer = CartPoleScreenPreprocessor(self.env)
+        self.state_renderer = SpaceInvadersScreenPreprocessor(self.env)
+        # self.state_renderer = CartPoleScreenPreprocessor(self.env)
         # self.state_renderer = SimpleCartPoleScreenPreprocessor(self.env)
 
         self.memory_capacity = 70000
@@ -370,8 +380,9 @@ class DQNAgent(object):
 
 
 def main():
-    ENV_NAME = 'CartPole-v1'
+    # ENV_NAME = 'CartPole-v1'
     # ENV_NAME = 'Breakout-v4'
+    ENV_NAME = 'Pong-v0'
 
     env = gym.make(ENV_NAME)
     np.random.seed(123)
@@ -379,7 +390,7 @@ def main():
     env.reset()
 
     # Settings.
-    screen_dims = 40
+    screen_dims = 84
 
     # Run.
     agent = DQNAgent(screen_dims=screen_dims, env=env)
