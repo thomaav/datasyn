@@ -36,7 +36,7 @@ class ScreenPreprocessor(object):
         pass
 
 
-    def render_current_state(self, dims=40):
+    def render_state(self, state, dims):
         screen = self.env.render(mode='rgb_array').transpose((2, 0, 1))
         screen = self.scale_screen(screen)
 
@@ -155,7 +155,7 @@ class CNNDQN(nn.Module):
         self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
         self.bn3 = nn.BatchNorm2d(32)
 
-        self.fc1 = nn.Linear(32*7*7, 256)
+        self.fc1 = nn.Linear(32*2*2, 256)
         self.classifier = nn.Linear(256, output_shape)
 
 
@@ -179,31 +179,31 @@ class DQNAgent(object):
         # self.nactions = self.env.action_space.n
 
         self.env = env
-        self.state_dims = 4
-        self.state_size = 4
+        self.state_dims = screen_dims
+        self.state_size = screen_dims**2
         self.nactions = self.env.action_space.n
 
         # self.state_renderer = SpaceInvadersScreenPreprocessor(self.env)
-        # self.state_renderer = CartPoleScreenPreprocessor(self.env)
-        self.state_renderer = SimpleCartPoleScreenPreprocessor(self.env)
+        self.state_renderer = CartPoleScreenPreprocessor(self.env)
+        # self.state_renderer = SimpleCartPoleScreenPreprocessor(self.env)
 
         self.memory_capacity = 70000
         self.memory = deque(maxlen=self.memory_capacity)
         self.learning_size_threshold = 1000
 
-        self.stack_size = 1
+        self.stack_size = 4
         self.stacked_frames = deque([np.zeros((self.state_dims, self.state_dims), dtype=np.int)
                                      for i in range(self.stack_size)], maxlen=self.stack_size)
 
         # self.model = FCDQN(self.state_size, self.nactions)
-        # self.model = CNNDQN(self.state_dims, self.state_dims, self.stack_size, self.nactions).to(DEVICE)
-        self.model = SimpleDQN(self.state_size, self.nactions)
+        self.model = CNNDQN(self.state_dims, self.state_dims, self.stack_size, self.nactions).to(DEVICE)
+        # self.model = SimpleDQN(self.state_size, self.nactions)
 
-        self.gamma = 0.8
+        self.gamma = 0.999
         self.eps = 1.0
         self.eps_start = 1.0
         self.eps_end = 0.1
-        self.eps_decay_rate = 0.001
+        self.eps_decay_rate = 0.0005
         self.batch_size = 64
         self.learning_rate = 0.001
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
@@ -294,14 +294,14 @@ class DQNAgent(object):
 
         while current_step < steps:
             _first_state = self.env.reset()
-            first_state = self.state_renderer.render_state(_first_state)
+            first_state = self.state_renderer.render_state(state=_first_state, dims=self.state_dims)
 
             total_reward = 0
             env_state = self.stack_frames(first_state, reset=True)
 
             for i in itertools.count():
-                if i % 30 == 0:
-                    print('Another 30 iterations over')
+                # if i % 30 == 0:
+                #     print('Another 30 iterations over')
 
                 action = self.action(env_state)
                 _next_state, reward, done, _ = self.env.step(action.item())
@@ -316,7 +316,7 @@ class DQNAgent(object):
                     reward = -1
 
                 # We already get the state above. Don't do this.
-                next_state = self.state_renderer.render_state(_next_state)
+                next_state = self.state_renderer.render_state(state=_next_state, dims=self.state_dims)
                 next_env_state = self.stack_frames(next_state, reset=False)
 
                 self.memorize((env_state, action, torch.FloatTensor([reward]), next_env_state))
@@ -379,7 +379,7 @@ def main():
     env.reset()
 
     # Settings.
-    screen_dims = 84
+    screen_dims = 40
 
     # Run.
     agent = DQNAgent(screen_dims=screen_dims, env=env)
