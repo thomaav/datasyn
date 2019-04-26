@@ -273,7 +273,7 @@ class DQNAgent(object):
             return torch.tensor([[random.randrange(self.nactions)]], device=DEVICE, dtype=torch.long)
 
         with torch.no_grad():
-            return self.policy_net.predict(state.view(*self.view(batch_size=1))).max(1)[1].view(1, 1)
+            return self.policy_net.predict(state.view(*self.view(batch_size=1)))
 
 
     def experience_replay(self, decay_step=0):
