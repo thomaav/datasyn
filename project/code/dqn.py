@@ -106,10 +106,12 @@ class SpaceInvadersScreenPreprocessor(ScreenPreprocessor):
     def render_state(self, state, dims):
         screen = state
         screen = cv2.cvtColor(cv2.resize(screen, (84, 110)), cv2.COLOR_BGR2GRAY)
-        screen = screen[26:110,:]
+        screen = screen[18:102,:]
         screen = np.reshape(screen, (84, 84, 1))
 
         screen = torch.from_numpy(screen).type(torch.FloatTensor)
+        screen = screen.float() / 255
+
         return screen.to(DEVICE)
 
 
@@ -158,21 +160,21 @@ class FCDQN(nn.Module):
 class CNNDQN(nn.Module):
     def __init__(self, height, width, n_channels, output_shape):
         super().__init__()
-        self.conv1 = nn.Conv2d(n_channels, 16, kernel_size=5, stride=2)
-        self.bn1 = nn.BatchNorm2d(16)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=5, stride=2)
-        self.bn2 = nn.BatchNorm2d(32)
-        self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
-        self.bn3 = nn.BatchNorm2d(32)
+        self.conv1 = nn.Conv2d(n_channels, 32, kernel_size=8, stride=4)
+        # self.bn1 = nn.BatchNorm2d(16)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+        # self.bn2 = nn.BatchNorm2d(32)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
+        # self.bn3 = nn.BatchNorm2d(32)
 
-        self.fc1 = nn.Linear(32*7*7, 256)
-        self.classifier = nn.Linear(256, output_shape)
+        self.fc1 = nn.Linear(64*7*7, 512)
+        self.classifier = nn.Linear(512, output_shape)
 
 
     def forward(self, x):
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = F.relu(self.bn3(self.conv3(x)))
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
         x = F.relu(self.fc1(x.view(x.size(0), -1)))
         return self.classifier(x)
 
@@ -220,10 +222,10 @@ class DQNAgent(object):
         self.gamma = 0.99
         self.eps = 1.0
         self.eps_start = 1.0
-        self.eps_end = 0.1
+        self.eps_end = 0.05
         self.eps_decay_rate = 0.00001
         self.batch_size = 32
-        self.learning_rate = 0.0001
+        self.learning_rate = 1e-4
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.learning_rate)
 
         # Metrics.
@@ -271,7 +273,7 @@ class DQNAgent(object):
             return torch.tensor([[random.randrange(self.nactions)]], device=DEVICE, dtype=torch.long)
 
         with torch.no_grad():
-            return self.policy_net.predict(state.view(*self.view(batch_size=1)))
+            return self.policy_net.predict(state.view(*self.view(batch_size=1))).max(1)[1].view(1, 1)
 
 
     def experience_replay(self, decay_step=0):
@@ -281,26 +283,25 @@ class DQNAgent(object):
         batch = random.sample(self.memory, self.batch_size)
         states, actions, rewards, next_states = zip(*batch)
 
-        states = torch.cat(states)
+        states = torch.cat(states).to(DEVICE)
         actions = torch.cat(actions)
         rewards = torch.cat(rewards)
-        non_final_next_states = torch.cat([s for s in next_states if s is not None])
+        non_final_next_states = torch.cat([s for s in next_states if s is not None]).to(DEVICE)
         non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
                                                 next_states)), device=DEVICE, dtype=torch.uint8)
 
         states_view_shape = self.view(self.batch_size)
         states = states.view(*states_view_shape)
-        non_final_states_view_shape = self.view(non_final_mask.shape[0])
+        non_final_states_view_shape = self.view(non_final_next_states.shape[0] // self.stack_size)
         non_final_next_states = non_final_next_states.view(*non_final_states_view_shape)
 
         q = self.policy_net(states).gather(1, actions)
-
         next_max_q = torch.zeros(self.batch_size, device=DEVICE)
         next_max_q[non_final_mask] = self.target_net(non_final_next_states).max(1)[0].detach()
-
         expected_q = rewards + (self.gamma*next_max_q)
 
-        loss = F.smooth_l1_loss(q.squeeze(), expected_q)
+        loss = F.smooth_l1_loss(q, expected_q.unsqueeze(1))
+
         self.optimizer.zero_grad()
         loss.backward()
         for param in self.policy_net.parameters():
@@ -343,7 +344,7 @@ class DQNAgent(object):
                 if done:
                     next_env_state = None
 
-                self.memorize((env_state, action, torch.FloatTensor([reward], device=DEVICE), next_env_state))
+                self.memorize((env_state, action, torch.FloatTensor([reward]).to(DEVICE), next_env_state))
                 self.experience_replay(decay_step)
 
                 env_state = next_env_state
@@ -399,7 +400,7 @@ class DQNAgent(object):
 def main():
     # ENV_NAME = 'CartPole-v1'
     # ENV_NAME = 'Breakout-v4'
-    ENV_NAME = 'PongNoFrameskip-v4'
+    ENV_NAME = 'Pong-v0'
 
     env = gym.make(ENV_NAME)
     np.random.seed(123)
